@@ -4,7 +4,7 @@ CC=gcc  #compiler
 TARGET=proj #target file name
 
 all:    ballAlg.o 
-	$(CC) -g ballAlg.c -o $(TARGET) -fopenmp
+	$(CC) -g ballAlg.c -o $(TARGET) -fopenmp -lm
 
 clean:
 	rm *.o $(TARGET)
