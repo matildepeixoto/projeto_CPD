@@ -152,30 +152,56 @@ double **orthogonal_projection(double **pts, int n_dims, long n_points, int a, i
     return po;
 }
 
-static int comp(const void* p1, const void* p2) {
-  if (*(double*)p1[0] > *(double*)p2[0])
-    return 1;
-  else if (*(double*)p1[0] < *(double*)p2[0])
-    return -1;
-  else
-    return 0;
+static int comp(const void *p1, const void *p2) {
+    const double (*x1) = *(const double**)p1;
+    const double (*x2) = *(const double**)p2;
+
+    double diff = x1[0] - x2[0];
+    if (diff > 0)
+        return 1;
+    else if (diff < 0)
+        return -1;
+    else
+        return 0;
 }
 
-void find_median(double **po, int n_dims, long n_points)
+double *find_median(double **po, int n_dims, long n_points)
 {
-    qsort(po, n_points, n_dims*sizeof(double), comp);
+    int index = 0, idx1 = 0, idx2 = 0;
+    double *median = (double*)malloc(n_dims * sizeof(double));
+
+    qsort(po, n_points, sizeof(po[0]), comp);
+
+    if(n_points%2 == 1)
+    {
+        index = div(n_points, 2).quot;
+        printf("index: %d\n", index);
+        for(int i = 0; i < n_dims; i++)
+            median[i] = po[index][i];
+    }
+    else
+    {
+        idx1 = div(n_points, 2).quot;
+        idx2 = idx1 + 1;
+        for(int i = 0; i < n_dims; i++)
+        {
+            median[i] = (po[idx1][i] + po[idx2][i])/2;
+        }
+    }
+
+    return median;
+
 }
 
 int main(int argc, char *argv[])
 {
     double exec_time;
+    double *median;
     double **pts, **po;
     int n_dims;
     long n_points;
     int a, b;
     double dist;
-    double x1[2] = {3.4, 7.7};
-    double x2[2] = {9.1, 2.0};
 
     exec_time = -omp_get_wtime();
     pts = get_points(argc, argv, &n_dims, &n_points);
@@ -188,11 +214,13 @@ int main(int argc, char *argv[])
     printf("Projeção ortogonal:\n");
     for(int i = 0; i < n_points; i++)
         printf("%.2lf %.2lf\n", po[i][0], po[i][1]);
-    //find_median(po, n_dims, n_points);
-    qsort(po, n_points,n_dims* sizeof(double), comp);
-    printf("Projeção ortogonal:\n");
+    median = find_median(po, n_dims, n_points);
+    printf("Projeção ortogonal ordenada:\n");
     for(int i = 0; i < n_points; i++)
         printf("%.2lf %.2lf\n", po[i][0], po[i][1]);
+    printf("Median:\n");
+    for(int i = 0; i < n_dims; i++)
+        printf("%.2lf\n", median[i]);
     //root = build_tree();
     exec_time += omp_get_wtime();
     fprintf(stderr, "%.10lf\n", exec_time);
