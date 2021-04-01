@@ -5,7 +5,43 @@
 #include "ballAlg.h"
 
 #define RANGE 10
+/*
+struct node* createNode(int n_dims, double *median, double radius) {
 
+    struct node* newNode = malloc(sizeof(struct node));
+    newNode->center = (double*) malloc(n_dims * sizeof(double));
+
+    for(int i = 0; i < n_dims; i++)
+        newNode->center[i] = median[i];
+    newNode->radius = radius;
+    newNode->next = NULL;
+
+    return newNode;
+}
+
+// Create a graph of V vertices
+struct Tree* create_tree() {
+
+  struct GrapTreeh* tree = malloc(sizeof(struct Tree));
+
+  tree->num_V = 0;
+
+  // Create vertical array of nodes (size MAX_NODES)
+  graph->a_list = (struct node **) malloc(MAX_NODES * sizeof(struct node *));
+  graph->visited =(int*) malloc(MAX_NODES * sizeof(int*));
+  graph->tier1 = (int*) malloc(MAX_NODES * sizeof(int*));
+
+  //initializes the vectors
+  for(int i = 0; i < MAX_NODES ; i++ )
+  {
+    graph->visited[i] = 0;
+    graph->a_list[i] = NULL;
+    graph->tier1[i] = 0;
+  }
+
+  return graph;
+}
+*/
 double **create_array_pts(int n_dims, long np)
 {
     double *_p_arr;
@@ -109,11 +145,11 @@ void get_points_ab(double **pts, int n_dims, long n_points, int *a, int *b)
 double **orthogonal_projection(double **pts, int n_dims, long n_points, int a, int b)
 {
     double den, num, inn_prod;
-    double** po = (double**)malloc(n_points * sizeof(double*));
+    double** po = (double**)malloc((n_points) * sizeof(double*));
 
     for (int i = 0; i < n_points; i++)
     {
-        po[i] = (double*)malloc(n_dims * sizeof(double));
+        po[i] = (double*)malloc((n_dims+1) * sizeof(double));
     }
     
     for(int i = 0; i < n_points; i++)
@@ -147,6 +183,7 @@ double **orthogonal_projection(double **pts, int n_dims, long n_points, int a, i
                 po[b][j] = pts[b][j];
             }
         }
+        po[i][n_dims] = i;
     }
 
     return po;
@@ -190,12 +227,46 @@ double *find_median(double **po, int n_dims, long n_points)
     }
 
     return median;
+}
 
+double get_radius(double **pts, int n_dims, int a, int b, double *median)
+{
+    double dist_a = 0, dist_b = 0, radius = 0;
+
+    dist_a = get_distance(n_dims, pts[a], median);
+    dist_b = get_distance(n_dims, pts[b], median);
+    if(dist_a > dist_b)
+        radius = dist_a;
+    else
+        radius = dist_b;
+
+    return radius;
+}
+
+void create_sets_LR(double **pts, double **set_L, double **set_R, double **po, int n_dims, int n_points, double *median)
+{
+    int l = 0, r = 0;
+    
+    for(int i = 0; i < n_points; i++)
+    {
+        if(po[i][0] < median[0])
+        {
+            for(int j = 0; j < n_dims; j++)
+                set_L[l][j] = pts[((int)po[i][n_dims])][j];
+            l++;
+        }
+        else
+        {
+            for(int j = 0; j < n_dims; j++)
+                set_R[r][j] = pts[((int)po[i][n_dims])][j];
+            r++;
+        }
+    }   
 }
 
 int main(int argc, char *argv[])
 {
-    double exec_time;
+    double exec_time, radius;
     double *median;
     double **pts, **po;
     int n_dims;
@@ -205,6 +276,15 @@ int main(int argc, char *argv[])
 
     exec_time = -omp_get_wtime();
     pts = get_points(argc, argv, &n_dims, &n_points);
+    int points_set = n_points/2 + 1;
+    double** set_L = (double**)malloc(points_set * sizeof(double*));
+    double** set_R = (double**)malloc(points_set * sizeof(double*));
+    
+    for (int i = 0; i < n_points; i++)
+    {
+        set_L[i] = (double*)malloc((n_dims) * sizeof(double));
+        set_R[i] = (double*)malloc((n_dims) * sizeof(double));
+    }
     get_points_ab(pts, n_dims, n_points, &a, &b);
     printf("Pontos:\n");
     for(int i = 0; i < n_points; i++)
@@ -221,6 +301,16 @@ int main(int argc, char *argv[])
     printf("Median:\n");
     for(int i = 0; i < n_dims; i++)
         printf("%.2lf\n", median[i]);
+    radius = get_radius(pts, n_dims, a, b, median);
+    printf("Radius: %.2lf\n", radius);
+    create_sets_LR(pts, set_L, set_R, po, n_dims, n_points, median);
+    printf("chegueei\n");
+    printf("Set L:\n");
+    for(int i = 0; i < 2; i++)
+        printf("%.2lf %.2lf\n", set_L[i][0], set_L[i][1]); 
+    printf("Set R:\n");
+    for(int i = 0; i < 3; i++)
+        printf("%.2lf %.2lf\n", set_R[i][0], set_R[i][1]); 
     //root = build_tree();
     exec_time += omp_get_wtime();
     fprintf(stderr, "%.10lf\n", exec_time);
