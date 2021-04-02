@@ -2,6 +2,7 @@
 #define FUNC_H
 
 struct node {
+  long id;
   double *center;
   double radius;
   struct node *nextL; 

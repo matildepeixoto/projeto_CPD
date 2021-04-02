@@ -6,11 +6,14 @@
 
 #define RANGE 10
 
-struct node* createNode(int n_dims, double *median, double radius) {
+long node_id = 0;
+
+struct node* createNode(int n_dims, double *median, double radius, long id) {
 
     struct node* newNode = malloc(sizeof(struct node));
     newNode->center = (double*) malloc(n_dims * sizeof(double));
 
+    newNode->id = id;
     for(int i = 0; i < n_dims; i++)
         newNode->center[i] = median[i];
     newNode->radius = radius;
@@ -245,15 +248,15 @@ void create_sets_LR(double **pts, double **set_L, double **set_R, double **po, i
 
 struct node* build_tree (double **pts, int n_dims, int n_points)
 {   
-    //ver o que se pode tirar por causa do ultimo recursivo que não faz contas nenhumas
     double radius = 0;
     double *median = pts[0];
-    double **po;
-    long a, b, l = 0, r = 0;
-    double dist;
     struct node* root;
     
-    if(n_points > 1){
+    if(n_points > 1)
+    {
+        double **po;
+        long a, b, l = 0, r = 0;
+        double dist;
         int points_set = n_points/2 + 1;
         double** set_L = (double**)malloc(points_set * sizeof(double*));
         double** set_R = (double**)malloc(points_set * sizeof(double*));
@@ -263,38 +266,55 @@ struct node* build_tree (double **pts, int n_dims, int n_points)
             set_L[i] = (double*)malloc((n_dims) * sizeof(double));
             set_R[i] = (double*)malloc((n_dims) * sizeof(double));
         }
+
         get_points_ab(pts, n_dims, n_points, &a, &b);
         po = orthogonal_projection(pts, n_dims, n_points, a, b);
         median = find_median(po, n_dims, n_points);
         radius = get_radius(pts, n_points, n_dims, median);
         create_sets_LR(pts, set_L, set_R, po, n_dims, n_points, median, &l, &r);
-        root = createNode(n_dims, median, radius); 
+
+        root = createNode(n_dims, median, radius, node_id);
+        node_id++; 
         root->nextL = build_tree(set_L, n_dims, l);
         root->nextR = build_tree(set_R, n_dims, r);
     }
-    else{
-        root = createNode(n_dims, median, radius); 
+    else
+    {
+        root = createNode(n_dims, median, radius, node_id); 
+        node_id++;
     }
+    
     return root;    
 }
 
-void print_tree(struct node* Tree)
+void print_tree(struct node* Tree, int n_dims)
 {
     struct node* tempL = Tree;
     struct node* tempR = Tree;
-
-    printf("radius %.02lf\n", tempL->radius); fflush(stdout);
+    
+    printf("%ld", tempL->id);
+    if(tempL->nextL == NULL)
+        printf(" -1");
+    else
+        printf("  %ld", (tempL->nextL)->id);
+    if(tempL->nextR == NULL)
+        printf(" -1");
+    else
+        printf("  %ld", (tempL->nextR)->id);
+    printf("  %.6lf", tempL->radius);
+    for(int i = 0; i < n_dims; i++)
+        printf("  %.6lf", tempL->center[i]);
+    printf("\n");
     tempL = tempL->nextL;
     if (tempL != NULL)
-        print_tree(tempL);
+        print_tree(tempL, n_dims);
     else
         return;
     tempR = tempR->nextR;
     if (tempR != NULL)
-        print_tree(tempR);
+        print_tree(tempR, n_dims);
     else
         return;
-
 }
 
 int main(int argc, char *argv[])
@@ -307,10 +327,9 @@ int main(int argc, char *argv[])
 
     exec_time = -omp_get_wtime();
     pts = get_points(argc, argv, &n_dims, &n_points);
-    
     root = build_tree(pts, n_dims, n_points);
-    printf("HI\n"); fflush(stdout);
-    print_tree(root);
+    printf("%d %ld\n", n_dims, node_id);
+    print_tree(root, n_dims);
     exec_time += omp_get_wtime();
     fprintf(stderr, "%.10lf\n", exec_time);
     //dump_tree(root); // to the stdout!
