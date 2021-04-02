@@ -191,6 +191,7 @@ double *find_median(double **po, int n_dims, long n_points)
     if(n_points%2 == 1)
     {
         index = div(n_points, 2).quot;
+        printf("index: %d\n", index);
         for(int i = 0; i < n_dims; i++)
             median[i] = po[index][i];
     }
@@ -243,7 +244,7 @@ void create_sets_LR(double **pts, double **set_L, double **set_R, double **po, i
     *r = r_aux; 
 }
 
-struct node* build_tree (double **pts, int n_dims, int n_points)
+void build_tree (double **pts, int n_dims, int n_points)
 {   
     //ver o que se pode tirar por causa do ultimo recursivo que não faz contas nenhumas
     double radius = 0;
@@ -264,37 +265,44 @@ struct node* build_tree (double **pts, int n_dims, int n_points)
             set_R[i] = (double*)malloc((n_dims) * sizeof(double));
         }
         get_points_ab(pts, n_dims, n_points, &a, &b);
+        printf("Pontos:\n");
+        for(long i = 0; i < n_points; i++)
+            printf("%.2lf %.2lf\n", pts[i][0], pts[i][1]);
+        printf("a: %.10lf, %.10lf\nb: %.10lf, %.10lf\n", pts[a][0], pts[a][1], pts[b][0], pts[b][1]);
         po = orthogonal_projection(pts, n_dims, n_points, a, b);
+        printf("Projeção ortogonal:\n");
+        for(long i = 0; i < n_points; i++)
+            printf("%.2lf %.2lf\n", po[i][0], po[i][1]);
         median = find_median(po, n_dims, n_points);
+        printf("Projeção ortogonal ordenada:\n");
+        for(long i = 0; i < n_points; i++)
+            printf("%.2lf %.2lf\n", po[i][0], po[i][1]);
+        printf("Median:\n");
+        for(long i = 0; i < n_dims; i++)
+            printf("%.2lf\n", median[i]);
         radius = get_radius(pts, n_points, n_dims, median);
+        printf("Radius: %.2lf\n", radius);
         create_sets_LR(pts, set_L, set_R, po, n_dims, n_points, median, &l, &r);
+        printf("Set L:\n");
+        for(long i = 0; i < l; i++)
+            printf("%.2lf %.2lf\n", set_L[i][0], set_L[i][1]); 
+        printf("Set R:\n");
+        for(long i = 0; i < r; i++)
+            printf("%.2lf %.2lf\n", set_R[i][0], set_R[i][1]); 
         root = createNode(n_dims, median, radius); 
-        root->nextL = build_tree(set_L, n_dims, l);
-        root->nextR = build_tree(set_R, n_dims, r);
+        printf("\n........................\n");  
+        build_tree(set_L, n_dims, l);
+        build_tree(set_R, n_dims, r);
     }
     else{
         root = createNode(n_dims, median, radius); 
+        printf("Radius: %.2lf\n", radius);
+        printf("Median:\n");
+        for(long i = 0; i < n_dims; i++)
+            printf("%.2lf\n", median[i]);
+        printf("\n........................\n");  
     }
-    return root;    
-}
-
-void print_tree(struct node* Tree)
-{
-    struct node* tempL = Tree;
-    struct node* tempR = Tree;
-
-    printf("radius %.02lf\n", tempL->radius); fflush(stdout);
-    tempL = tempL->nextL;
-    if (tempL != NULL)
-        print_tree(tempL);
-    else
-        return;
-    tempR = tempR->nextR;
-    if (tempR != NULL)
-        print_tree(tempR);
-    else
-        return;
-
+    
 }
 
 int main(int argc, char *argv[])
@@ -303,14 +311,12 @@ int main(int argc, char *argv[])
     double **pts;
     int n_dims;
     long n_points;
-    struct node* root;
 
     exec_time = -omp_get_wtime();
     pts = get_points(argc, argv, &n_dims, &n_points);
     
-    root = build_tree(pts, n_dims, n_points);
-    printf("HI\n"); fflush(stdout);
-    print_tree(root);
+    build_tree(pts, n_dims, n_points);
+    //root = build_tree();
     exec_time += omp_get_wtime();
     fprintf(stderr, "%.10lf\n", exec_time);
     //dump_tree(root); // to the stdout!

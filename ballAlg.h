@@ -20,6 +20,6 @@ double **orthogonal_projection(double **pts, int n_dims, long n_points, long a, 
 static int comp(const void *p1, const void *p2);
 double *find_median(double **po, int n_dims, long n_points);
 double get_radius(double **pts, int n_points, int n_dims, double *median);
-void create_sets_LR(double **pts, double **set_L, double **set_R, double **po, int n_dims, int n_points, double *median);
+void create_sets_LR(double **pts, double **set_L, double **set_R, double **po, int n_dims, int n_points, double *median, long *l, long *r);
 
 #endif
