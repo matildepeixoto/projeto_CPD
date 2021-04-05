@@ -224,7 +224,7 @@ double get_radius(double **pts, int n_points, int n_dims, double *median)
     return radius;
 }
 
-void create_sets_LR(double **pts, double **set_L, double **set_R, double **po, int n_dims, int n_points, double *median, long *l, long *r)
+void create_sets_LR(double **pts, double **set_L, double **set_R, double **po, int n_dims, long n_points, double *median, long *l, long *r)
 {    
     long l_aux = 0, r_aux = 0;
     for(long i = 0; i < n_points; i++)
@@ -246,7 +246,7 @@ void create_sets_LR(double **pts, double **set_L, double **set_R, double **po, i
     *r = r_aux; 
 }
 
-struct node* build_tree (double **pts, int n_dims, int n_points)
+struct node* build_tree (double **pts, int n_dims, long n_points)
 {   
     double radius = 0;
     double *median = pts[0];
@@ -257,9 +257,8 @@ struct node* build_tree (double **pts, int n_dims, int n_points)
         double **po;
         long a, b, l = 0, r = 0;
         double dist;
-        int points_set = n_points/2 + 1;
-        double** set_L = (double**)malloc(points_set * sizeof(double*));
-        double** set_R = (double**)malloc(points_set * sizeof(double*));
+        double** set_L = (double**)malloc(n_points * sizeof(double*));
+        double** set_R = (double**)malloc(n_points * sizeof(double*));
         
         for (long i = 0; i < n_points; i++)
         {

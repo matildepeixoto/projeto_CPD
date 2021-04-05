@@ -232,12 +232,14 @@ void create_sets_LR(double **pts, double **set_L, double **set_R, double **po, i
             for(int j = 0; j < n_dims; j++)
                 set_L[l_aux][j] = pts[((int)po[i][n_dims])][j];
             l_aux++;
+            printf("l_aux: %ld", l_aux);
         }
         else
         {
             for(int j = 0; j < n_dims; j++)
                 set_R[r_aux][j] = pts[((int)po[i][n_dims])][j];
             r_aux++;
+            printf("r_aux: %ld", r_aux);
         }
     }   
     *l = l_aux;
@@ -255,9 +257,9 @@ void build_tree (double **pts, int n_dims, int n_points)
     struct node* root;
     
     if(n_points > 1){
-        int points_set = n_points/2 + 1;
-        double** set_L = (double**)malloc(points_set * sizeof(double*));
-        double** set_R = (double**)malloc(points_set * sizeof(double*));
+        //int points_set = n_points/2 + 1;
+        double** set_L = (double**)malloc(n_points * sizeof(double*));
+        double** set_R = (double**)malloc(n_points * sizeof(double*));
         
         for (long i = 0; i < n_points; i++)
         {
