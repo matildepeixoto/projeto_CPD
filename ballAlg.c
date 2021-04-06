@@ -37,9 +37,10 @@ double **create_array_pts(int n_dims, long np)
         exit(4);
     }
     
-    for(int i = 0; i < np; i++)
+    for(int i = 0; i < np; i++){
         p_arr[i] = &_p_arr[i * n_dims];
-    
+    }
+
     return p_arr;
 }
 
@@ -276,6 +277,10 @@ struct node* build_tree (double **pts, int n_dims, long n_points)
         node_id++; 
         root->nextL = build_tree(set_L, n_dims, l);
         root->nextR = build_tree(set_R, n_dims, r);
+        freepointers(n_points, set_L);
+        freepointers(n_points, set_R);
+        freepointers(n_points, po);
+        free(median);
     }
     else
     {
@@ -308,12 +313,30 @@ void print_tree(struct node* Tree, int n_dims)
     if (tempL != NULL)
         print_tree(tempL, n_dims);
     else
+    {
+        free(Tree->center);
+        free(Tree);
         return;
+    }
     tempR = tempR->nextR;
     if (tempR != NULL)
         print_tree(tempR, n_dims);
     else
+    {
+        free(Tree->center);
+        free(Tree);
         return;
+    }
+    free(Tree->center);
+    free(Tree);
+}
+
+void freepointers(long n, double** pointer){
+    for (long i = 0; i < n; i++)
+    {
+        free(pointer[i]);
+    }
+    free(pointer);
 }
 
 int main(int argc, char *argv[])
@@ -327,9 +350,11 @@ int main(int argc, char *argv[])
     exec_time = -omp_get_wtime();
     pts = get_points(argc, argv, &n_dims, &n_points);
     root = build_tree(pts, n_dims, n_points);
+    exec_time += omp_get_wtime();
+    free(pts[0]);
+    free(pts);
+    fprintf(stderr, "%.10lf\n", exec_time);
     printf("%d %ld\n", n_dims, node_id);
     print_tree(root, n_dims);
-    exec_time += omp_get_wtime();
-    fprintf(stderr, "%.10lf\n", exec_time);
     //dump_tree(root); // to the stdout!
 }
