@@ -132,7 +132,7 @@ double **orthogonal_projection(double **pts, int n_dims, long n_points, long a, 
 
     for (long i = 0; i < n_points; i++)
     {
-        po[i] = (double*)malloc((n_dims+1) * sizeof(double));
+        po[i] = (double*)malloc(2 * sizeof(double));
     }
     
     for(long i = 0; i < n_points; i++)
@@ -145,31 +145,69 @@ double **orthogonal_projection(double **pts, int n_dims, long n_points, long a, 
                 den += pow((pts[b][j] - pts[a][j]), 2);
             }
             inn_prod = (num/den);
-            for(int j = 0; j < n_dims; j++)
-            {
-                po[i][j] = (inn_prod * (pts[b][j] - pts[a][j])) + pts[a][j];
-            }
+            /*for(int j = 0; j < n_dims; j++)
+            {*/
+                po[i][0] = (inn_prod * (pts[b][0] - pts[a][0])) + pts[a][0];
+            //}
             num = 0;
             den = 0;
         }
         else if(i == a)
         {
-            for(int j = 0; j < n_dims; j++)
-            {
-                po[a][j] = pts[a][j];
-            }
+            /*for(int j = 0; j < n_dims; j++)
+            {*/
+                po[a][0] = pts[a][0];
+            //}
         }
         else
         {
-            for(int j = 0; j < n_dims; j++)
-            {
-                po[b][j] = pts[b][j];
-            }
+            /*for(int j = 0; j < n_dims; j++)
+            {*/
+                po[b][0] = pts[b][0];
+            //}
         }
-        po[i][n_dims] = i;
+        po[i][1] = i;
     }
 
     return po;
+}
+
+double *calc_median(double **pts, int n_dims, long i, long a, long b)
+{
+    double den = 0, num = 0, inn_prod = 0;
+    double *median = (double*)malloc(n_dims * sizeof(double));
+
+    if(i != a && i != b)
+    {
+        for(int j = 0; j < n_dims; j++)
+        {
+            num += (pts[i][j] - pts[a][j]) * (pts[b][j] - pts[a][j]);
+            den += pow((pts[b][j] - pts[a][j]), 2);
+        }
+        inn_prod = (num/den);
+        for(int j = 0; j < n_dims; j++)
+        {
+            median[j] = (inn_prod * (pts[b][j] - pts[a][j])) + pts[a][j];
+        }
+        num = 0;
+        den = 0;
+    }
+    else if(i == a)
+    {
+        for(int j = 0; j < n_dims; j++)
+        {
+            median[j] = pts[a][j];
+        }
+    }
+    else
+    {
+        for(int j = 0; j < n_dims; j++)
+        {
+            median[j] = pts[b][j];
+        }
+    }
+
+    return median;
 }
 
 static int comp(const void *p1, const void *p2) {
@@ -185,27 +223,26 @@ static int comp(const void *p1, const void *p2) {
         return 0;
 }
 
-double *find_median(double **po, int n_dims, long n_points)
+double *find_median(double **pts, double **po, int n_dims, long n_points, long a, long b)
 {
     int index = 0, idx1 = 0, idx2 = 0;
-    double *median = (double*)malloc(n_dims * sizeof(double));
+    double *median, *median_aux;
 
     qsort(po, n_points, sizeof(po[0]), comp);
 
     if(n_points%2 == 1)
     {
         index = div(n_points, 2).quot;
-        for(int i = 0; i < n_dims; i++)
-            median[i] = po[index][i];
+        median = calc_median(pts, n_dims, po[index][1], a, b);
     }
     else
     {
         idx1 = div(n_points, 2).quot;
         idx2 = idx1 - 1;
-        for(int i = 0; i < n_dims; i++)
-        {
-            median[i] = (po[idx1][i] + po[idx2][i])/2;
-        }
+        median = calc_median(pts, n_dims, po[idx1][1], a, b);
+        median_aux = calc_median(pts, n_dims, po[idx2][1], a, b);
+        for (int i = 0; i < n_dims; i++)
+            median[i] = (median[i] + median_aux[i])/2;
     }
 
     return median;
@@ -233,21 +270,21 @@ void create_sets_LR(double **pts, double **set_L, double **set_R, double **po, i
         if(po[i][0] < median[0])
         {
             for(int j = 0; j < n_dims; j++)
-                set_L[l_aux][j] = pts[((int)po[i][n_dims])][j];
+                set_L[l_aux][j] = pts[((int)po[i][1])][j];
             l_aux++;
         }
         else
         {
             for(int j = 0; j < n_dims; j++)
-                set_R[r_aux][j] = pts[((int)po[i][n_dims])][j];
+                set_R[r_aux][j] = pts[((int)po[i][1])][j];
             r_aux++;
         }
     }   
     *l = l_aux;
-    *r = r_aux; 
+    *r = r_aux;
 }
 
-struct node* build_tree (double **pts, int n_dims, long n_points)
+struct node* build_tree(double **pts, int n_dims, long n_points)
 {   
     double radius = 0;
     double *median = pts[0];
@@ -269,10 +306,9 @@ struct node* build_tree (double **pts, int n_dims, long n_points)
 
         get_points_ab(pts, n_dims, n_points, &a, &b);
         po = orthogonal_projection(pts, n_dims, n_points, a, b);
-        median = find_median(po, n_dims, n_points);
+        median = find_median(pts, po, n_dims, n_points, a, b);
         radius = get_radius(pts, n_points, n_dims, median);
         create_sets_LR(pts, set_L, set_R, po, n_dims, n_points, median, &l, &r);
-
         root = createNode(n_dims, median, radius, node_id);
         node_id++; 
         root->nextL = build_tree(set_L, n_dims, l);
