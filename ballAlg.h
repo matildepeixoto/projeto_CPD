@@ -11,13 +11,14 @@ struct node {
 
 struct node *newNode;
 
+//#define PRINT_TIME2 1
 
 
 double **create_array_pts(int n_dims, long np);
 double **get_points(int argc, char *argv[], int *n_dims, long *np);
 double get_distance(int n_dims, double *x1, double *x2);
 void get_points_ab(double **pts, int n_dims, long n_points, long *a, long *b);
-double **orthogonal_projection(double **pts, int n_dims, long n_points, long a, long b);
+void orthogonal_projection(double **pts, double **po, int n_dims, long n_points, long a, long b);
 double *calc_median(double **pts, int n_dims, long i, long a, long b);
 static int comp(const void *p1, const void *p2);
 double *find_median(double **pts, double **po, int n_dims, long n_points, long a, long b);

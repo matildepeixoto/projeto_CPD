@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <time.h>
 #include "ballAlg.h"
 
 #define RANGE 10
@@ -89,7 +90,7 @@ double get_distance(int n_dims, double *x1, double *x2)
 
     for(i = 0; i < n_dims; i++)
     {
-        dist = dist + pow((x1[i] - x2[i]), 2);
+        dist = dist + (x1[i] - x2[i]) * (x1[i] - x2[i]);
     }
 
     dist = sqrt(dist);
@@ -125,19 +126,16 @@ void get_points_ab(double **pts, int n_dims, long n_points, long *a, long *b)
     }
 }
 
-double **orthogonal_projection(double **pts, int n_dims, long n_points, long a, long b)
+void orthogonal_projection(double **pts, double **po, int n_dims, long n_points, long a, long b)
 {
-    double den = 0, num = 0, inn_prod = 0;
-    double** po = (double**)malloc((n_points) * sizeof(double*));
-
-    for (long i = 0; i < n_points; i++)
-    {
-        po[i] = (double*)malloc(2 * sizeof(double));
-    }
+    double den = 0, num = 0, inn_prod = 0, aux = 0;
+    double *aux2 = (double *) malloc(n_dims * sizeof(double));
 
     for(int j = 0; j < n_dims; j++)
     {
-        den += (pts[b][j] - pts[a][j]) * (pts[b][j] - pts[a][j]);
+        aux = pts[b][j] - pts[a][j];
+        den += aux * aux;
+        aux2[j] = aux;
     }
     
     for(long i = 0; i < n_points; i++)
@@ -146,7 +144,7 @@ double **orthogonal_projection(double **pts, int n_dims, long n_points, long a, 
         {
             for(int j = 0; j < n_dims; j++)
             {
-                num += (pts[i][j] - pts[a][j]) * (pts[b][j] - pts[a][j]);
+                num += (pts[i][j] - pts[a][j]) * aux2[j];
             }
             inn_prod = (num/den);
             po[i][0] = (inn_prod * (pts[b][0] - pts[a][0])) + pts[a][0];
@@ -158,30 +156,32 @@ double **orthogonal_projection(double **pts, int n_dims, long n_points, long a, 
             po[b][0] = pts[b][0];
         po[i][1] = i;
     }
-
-    return po;
+    free(aux2);
 }
 
 double *calc_median(double **pts, int n_dims, long i, long a, long b)
 {
-    double den = 0, num = 0, inn_prod = 0;
+    double den = 0, num = 0, inn_prod = 0, aux = 0;
     double *median = (double*)malloc(n_dims * sizeof(double));
+    double *aux2 = (double *) malloc(n_dims * sizeof(double));
 
     for(int j = 0; j < n_dims; j++)
     {
-        den += (pts[b][j] - pts[a][j]) * (pts[b][j] - pts[a][j]);
+        aux = pts[b][j] - pts[a][j];
+        den += aux * aux;
+        aux2[j] = aux; 
     }
 
     if(i != a && i != b)
     {
         for(int j = 0; j < n_dims; j++)
         {
-            num += (pts[i][j] - pts[a][j]) * (pts[b][j] - pts[a][j]);
+            num += (pts[i][j] - pts[a][j]) * aux2[j];
         }
         inn_prod = (num/den);
         for(int j = 0; j < n_dims; j++)
         {
-            median[j] = (inn_prod * (pts[b][j] - pts[a][j])) + pts[a][j];
+            median[j] = (inn_prod * aux2[j]) + pts[a][j];
         }
         num = 0;
     }
@@ -199,6 +199,8 @@ double *calc_median(double **pts, int n_dims, long i, long a, long b)
             median[j] = pts[b][j];
         }
     }
+
+    free(aux2);
 
     return median;
 }
@@ -220,17 +222,18 @@ double *find_median(double **pts, double **po, int n_dims, long n_points, long a
 {
     int index = 0, idx1 = 0, idx2 = 0;
     double *median, *median_aux;
-
+    
     qsort(po, n_points, sizeof(po[0]), comp);
 
     if(n_points%2 == 1)
     {
-        index = div(n_points, 2).quot;
+        
+        index = n_points/2;
         median = calc_median(pts, n_dims, po[index][1], a, b);
     }
     else
     {
-        idx1 = div(n_points, 2).quot;
+        idx1 = n_points/2;
         idx2 = idx1 - 1;
         median = calc_median(pts, n_dims, po[idx1][1], a, b);
         median_aux = calc_median(pts, n_dims, po[idx2][1], a, b);
@@ -257,19 +260,20 @@ double get_radius(double **pts, int n_points, int n_dims, double *median)
 
 void create_sets_LR(double **pts, double **set_L, double **set_R, double **po, int n_dims, long n_points, double *median, long *l, long *r)
 {    
-    long l_aux = 0, r_aux = 0;
+    long l_aux = 0, r_aux = 0, aux = 0;
     for(long i = 0; i < n_points; i++)
     {
+        aux = po[i][1];
         if(po[i][0] < median[0])
         {
             for(int j = 0; j < n_dims; j++)
-                set_L[l_aux][j] = pts[((int)po[i][1])][j];
+                set_L[l_aux][j] = pts[aux][j];
             l_aux++;
         }
         else
         {
             for(int j = 0; j < n_dims; j++)
-                set_R[r_aux][j] = pts[((int)po[i][1])][j];
+                set_R[r_aux][j] = pts[aux][j];
             r_aux++;
         }
     }   
@@ -285,24 +289,74 @@ struct node* build_tree(double **pts, int n_dims, long n_points)
     
     if(n_points > 1)
     {
-        double **po;
         long a, b, l = 0, r = 0;
         double dist;
         double** set_L = (double**)malloc(n_points * sizeof(double*));
         double** set_R = (double**)malloc(n_points * sizeof(double*));
+        double** po = (double**)malloc((n_points) * sizeof(double*));
         
         for (long i = 0; i < n_points; i++)
         {
             set_L[i] = (double*)malloc((n_dims) * sizeof(double));
             set_R[i] = (double*)malloc((n_dims) * sizeof(double));
+            po[i] = (double*)malloc(2 * sizeof(double));
         }
+        #ifdef PRINT_TIME2
+            double  timing1; 
+            double  timing2; 
+            struct timespec t2;
+            clock_gettime(CLOCK_REALTIME, &t2);
+            timing1 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
+        #endif
 
         get_points_ab(pts, n_dims, n_points, &a, &b);
-        po = orthogonal_projection(pts, n_dims, n_points, a, b);
+
+        #ifdef PRINT_TIME2
+            clock_gettime(CLOCK_REALTIME, &t2);
+            timing2 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
+            printf("Time for get_points_ab: %f [ms]\n", timing2- timing1);
+        #endif
+        
+        orthogonal_projection(pts, po, n_dims, n_points, a, b);
+
+        #ifdef PRINT_TIME2
+            clock_gettime(CLOCK_REALTIME, &t2);
+            timing1 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
+            printf("Time for orthogonal_projection: %f [ms]\n", timing1- timing2);
+        #endif
+        
         median = find_median(pts, po, n_dims, n_points, a, b);
+
+        #ifdef PRINT_TIME2
+            clock_gettime(CLOCK_REALTIME, &t2);
+            timing2 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
+            printf("Time for find_median: %f [ms]\n", timing2- timing1);
+        #endif
+
         radius = get_radius(pts, n_points, n_dims, median);
+
+        #ifdef PRINT_TIME2
+            clock_gettime(CLOCK_REALTIME, &t2);
+            timing1 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
+            printf("Time for get_radius: %f [ms]\n", timing1- timing2);
+        #endif
+
         create_sets_LR(pts, set_L, set_R, po, n_dims, n_points, median, &l, &r);
+
+        #ifdef PRINT_TIME2
+            clock_gettime(CLOCK_REALTIME, &t2);
+            timing2 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
+            printf("Time for create_sets_LR: %f [ms]\n", timing2- timing1);
+        #endif
+
         root = createNode(n_dims, median, radius, node_id);
+
+        #ifdef PRINT_TIME2
+            clock_gettime(CLOCK_REALTIME, &t2);
+            timing1 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
+            printf("Time for createNode: %f [ms]\n", timing1- timing2);
+        #endif
+
         node_id++; 
         root->nextL = build_tree(set_L, n_dims, l);
         root->nextR = build_tree(set_R, n_dims, r);
