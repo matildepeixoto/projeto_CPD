@@ -134,6 +134,11 @@ double **orthogonal_projection(double **pts, int n_dims, long n_points, long a, 
     {
         po[i] = (double*)malloc(2 * sizeof(double));
     }
+
+    for(int j = 0; j < n_dims; j++)
+    {
+        den += (pts[b][j] - pts[a][j]) * (pts[b][j] - pts[a][j]);
+    }
     
     for(long i = 0; i < n_points; i++)
     {
@@ -142,30 +147,15 @@ double **orthogonal_projection(double **pts, int n_dims, long n_points, long a, 
             for(int j = 0; j < n_dims; j++)
             {
                 num += (pts[i][j] - pts[a][j]) * (pts[b][j] - pts[a][j]);
-                den += pow((pts[b][j] - pts[a][j]), 2);
             }
             inn_prod = (num/den);
-            /*for(int j = 0; j < n_dims; j++)
-            {*/
-                po[i][0] = (inn_prod * (pts[b][0] - pts[a][0])) + pts[a][0];
-            //}
+            po[i][0] = (inn_prod * (pts[b][0] - pts[a][0])) + pts[a][0];
             num = 0;
-            den = 0;
         }
         else if(i == a)
-        {
-            /*for(int j = 0; j < n_dims; j++)
-            {*/
-                po[a][0] = pts[a][0];
-            //}
-        }
+            po[a][0] = pts[a][0];
         else
-        {
-            /*for(int j = 0; j < n_dims; j++)
-            {*/
-                po[b][0] = pts[b][0];
-            //}
-        }
+            po[b][0] = pts[b][0];
         po[i][1] = i;
     }
 
@@ -177,12 +167,16 @@ double *calc_median(double **pts, int n_dims, long i, long a, long b)
     double den = 0, num = 0, inn_prod = 0;
     double *median = (double*)malloc(n_dims * sizeof(double));
 
+    for(int j = 0; j < n_dims; j++)
+    {
+        den += (pts[b][j] - pts[a][j]) * (pts[b][j] - pts[a][j]);
+    }
+
     if(i != a && i != b)
     {
         for(int j = 0; j < n_dims; j++)
         {
             num += (pts[i][j] - pts[a][j]) * (pts[b][j] - pts[a][j]);
-            den += pow((pts[b][j] - pts[a][j]), 2);
         }
         inn_prod = (num/den);
         for(int j = 0; j < n_dims; j++)
@@ -190,7 +184,6 @@ double *calc_median(double **pts, int n_dims, long i, long a, long b)
             median[j] = (inn_prod * (pts[b][j] - pts[a][j])) + pts[a][j];
         }
         num = 0;
-        den = 0;
     }
     else if(i == a)
     {
