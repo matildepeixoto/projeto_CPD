@@ -9,7 +9,7 @@
 
 //OMP_NUM_THREADS = 8;
 
-long node_id = 0;
+long node_id = -1;
 
 struct node* createNode(int n_dims, double *median, double radius, long id) {
 
@@ -106,7 +106,7 @@ void get_points_ab(double **pts, long *set, int n_dims, long n_points, long *a, 
 
     aux = set[0];
 
-    #pragma omp parallel for if(n_points > 10000) private(dist_aux) 
+    #pragma omp parallel for if(n_points > 10000) private(dist_aux) //schedule(dynamic)
     for(i = 1; i < n_points; i++)
     {
         dist_aux = get_distance(n_dims, pts[aux], pts[set[i]]);
@@ -121,7 +121,7 @@ void get_points_ab(double **pts, long *set, int n_dims, long n_points, long *a, 
     dist = 0;
     aux = set[*a];
 
-    #pragma omp parallel for if(n_points > 10000) private(dist_aux)
+    #pragma omp parallel for if(n_points > 10000) private(dist_aux) //schedule(dynamic)
     for(i = 0; i < n_points; i++)
     {
         dist_aux = get_distance(n_dims, pts[aux], pts[set[i]]);
@@ -147,7 +147,7 @@ void orthogonal_projection(double **pts, long *set, double **po, int n_dims, lon
         aux2[j] = aux;
     }
     
-    #pragma omp parallel for if(n_points > 10000) private(index_i, inn_prod) firstprivate(num)
+    #pragma omp parallel for if(n_points > 10000) private(index_i, inn_prod) firstprivate(num) //schedule(dynamic)
     for(long i = 0; i < n_points; i++)
     {
         if(i != a && i != b)
@@ -259,7 +259,7 @@ double get_radius(double **pts, long *set, int n_points, int n_dims, double *med
 {
     double dist_aux = 0, radius = 0;
     
-    #pragma omp parallel for if(n_points > 10000) private(dist_aux)
+    #pragma omp parallel for if(n_points > 10000) private(dist_aux) //schedule(dynamic)
     for(long i = 0; i < n_points; i++)
     {
         dist_aux = get_distance(n_dims, pts[set[i]], median);
@@ -297,6 +297,9 @@ struct node* build_tree(double **pts, long *set, int n_dims, long n_points)
     double radius = 0;
     double *median = pts[set[0]];
     struct node* root;
+
+    #pragma omp critical
+    node_id++; 
     
     if(n_points > 1)
     {
@@ -314,25 +317,29 @@ struct node* build_tree(double **pts, long *set, int n_dims, long n_points)
         get_points_ab(pts, set, n_dims, n_points, &a, &b);
         
         orthogonal_projection(pts, set, po, n_dims, n_points, a, b);
-
-        median = find_median(pts, set, po, n_dims, n_points, a, b);
-
-        radius = get_radius(pts, set, n_points, n_dims, median);
-
-        create_sets_LR(set_L, set_R, po, n_dims, n_points, median, &l, &r);
-
-        root = createNode(n_dims, median, radius, node_id);
-        #pragma omp atomic
-        node_id++; 
         
-        #pragma omp parallel sections
+        median = find_median(pts, set, po, n_dims, n_points, a, b);
+        
+        #pragma omp parallel sections if(n_points > 1000)
         {
-            //#pragma omp parallel private(root, pts, set_L, n_dims, l)
             #pragma omp section
-            root->nextL = build_tree(pts, set_L, n_dims, l);
-            //#pragma omp parallel private(root, pts, set_L, n_dims, l)
+            radius = get_radius(pts, set, n_points, n_dims, median);
             #pragma omp section
-            root->nextR = build_tree(pts, set_R, n_dims, r);
+            create_sets_LR(set_L, set_R, po, n_dims, n_points, median, &l, &r);
+        }
+        
+        root = createNode(n_dims, median, radius, node_id);
+        
+        
+        #pragma omp parallel 
+        {
+            #pragma omp sections nowait
+            {
+                #pragma omp section
+                root->nextL = build_tree(pts, set_L, n_dims, l);
+                #pragma omp section
+                root->nextR = build_tree(pts, set_R, n_dims, r);
+            }
         }
         free(set_L);
         free(set_R);
@@ -342,8 +349,7 @@ struct node* build_tree(double **pts, long *set, int n_dims, long n_points)
     else
     {
         root = createNode(n_dims, median, radius, node_id); 
-        #pragma omp atomic
-        node_id++;
+        
     }  
     return root;    
 }
@@ -407,9 +413,9 @@ int main(int argc, char *argv[])
     exec_time = -omp_get_wtime();
     pts = get_points(argc, argv, &n_dims, &n_points);
     long* set = (long*)malloc(n_points * sizeof(long)); 
+    #pragma omp parallel for
     for(long i = 0; i <n_points; i++)
         set[i] = i;
-    //#pragma omp parallel private(root, pts, set, n_dims, n_points)
     root = build_tree(pts, set, n_dims, n_points);
     exec_time += omp_get_wtime();
     free(pts[0]);
@@ -417,5 +423,4 @@ int main(int argc, char *argv[])
     fprintf(stderr, "%.10lf\n", exec_time);
     printf("%d %ld\n", n_dims, node_id);
     print_tree(root, n_dims);
-    //dump_tree(root); // to the stdout!
 }

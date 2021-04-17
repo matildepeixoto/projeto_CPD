@@ -32,7 +32,6 @@ struct node* createNode(int n_dims, double *median, double radius, long id) {
     return newNode;
 }
 
-
 double **create_array_pts(int n_dims, long np)
 {
     double *_p_arr;
@@ -83,7 +82,6 @@ double **get_points(int argc, char *argv[], int *n_dims, long *np)
     srandom(seed);
     pt_arr = create_array_pts(*n_dims, *np);
 
-    //#pragma omp parallel for private(j)
     for(i = 0; i < *np; i++){
         for(j = 0; j < *n_dims; j++)
             pt_arr[i][j] = RANGE * ((double) random()) / RAND_MAX;
@@ -114,72 +112,72 @@ void get_points_ab(double **pts, long *set, int n_dims, long n_points, long *a, 
 
     aux = set[0];
 
-POMP_Parallel_fork(&omp_rd_16);
-#line 111 "ballAlg.c"
-    #pragma omp parallel     private(dist_aux)
-{ POMP_Parallel_begin(&omp_rd_16);
-POMP_For_enter(&omp_rd_16);
-#line 111 "ballAlg.c"
-    #pragma omp          for                   nowait
+POMP_Parallel_fork(&omp_rd_121);
+#line 109 "ballAlg.c"
+    #pragma omp parallel     if(n_points > 10000) private(dist_aux)                    
+{ POMP_Parallel_begin(&omp_rd_121);
+POMP_For_enter(&omp_rd_121);
+#line 109 "ballAlg.c"
+    #pragma omp          for                                                            nowait
     for(i = 1; i < n_points; i++)
     {
         dist_aux = get_distance(n_dims, pts[aux], pts[set[i]]);
-POMP_Critical_enter(&omp_rd_17);
-#line 115 "ballAlg.c"
+POMP_Critical_enter(&omp_rd_122);
+#line 113 "ballAlg.c"
         #pragma omp critical (find_a)
-{ POMP_Critical_begin(&omp_rd_17);
-#line 116 "ballAlg.c"
+{ POMP_Critical_begin(&omp_rd_122);
+#line 114 "ballAlg.c"
         if(dist_aux > dist)
         {
             dist = dist_aux;
             *a = i;
         }
-POMP_Critical_end(&omp_rd_17); }
-POMP_Critical_exit(&omp_rd_17);
-#line 121 "ballAlg.c"
+POMP_Critical_end(&omp_rd_122); }
+POMP_Critical_exit(&omp_rd_122);
+#line 119 "ballAlg.c"
     }
-POMP_Barrier_enter(&omp_rd_16);
+POMP_Barrier_enter(&omp_rd_121);
 #pragma omp barrier
-POMP_Barrier_exit(&omp_rd_16);
-POMP_For_exit(&omp_rd_16);
-POMP_Parallel_end(&omp_rd_16); }
-POMP_Parallel_join(&omp_rd_16);
-#line 122 "ballAlg.c"
+POMP_Barrier_exit(&omp_rd_121);
+POMP_For_exit(&omp_rd_121);
+POMP_Parallel_end(&omp_rd_121); }
+POMP_Parallel_join(&omp_rd_121);
+#line 120 "ballAlg.c"
     
     dist = 0;
     aux = set[*a];
 
-POMP_Parallel_fork(&omp_rd_18);
-#line 126 "ballAlg.c"
-    #pragma omp parallel     private(dist_aux)
-{ POMP_Parallel_begin(&omp_rd_18);
-POMP_For_enter(&omp_rd_18);
-#line 126 "ballAlg.c"
-    #pragma omp          for                   nowait
+POMP_Parallel_fork(&omp_rd_123);
+#line 124 "ballAlg.c"
+    #pragma omp parallel     if(n_points > 10000) private(dist_aux)                    
+{ POMP_Parallel_begin(&omp_rd_123);
+POMP_For_enter(&omp_rd_123);
+#line 124 "ballAlg.c"
+    #pragma omp          for                                                            nowait
     for(i = 0; i < n_points; i++)
     {
         dist_aux = get_distance(n_dims, pts[aux], pts[set[i]]);
-POMP_Critical_enter(&omp_rd_19);
-#line 130 "ballAlg.c"
+POMP_Critical_enter(&omp_rd_124);
+#line 128 "ballAlg.c"
         #pragma omp critical (find_b)
-{ POMP_Critical_begin(&omp_rd_19);
-#line 131 "ballAlg.c"
+{ POMP_Critical_begin(&omp_rd_124);
+#line 129 "ballAlg.c"
         if(dist_aux > dist)
         {
             dist = dist_aux;
             *b = i;
         }
-POMP_Critical_end(&omp_rd_19); }
-POMP_Critical_exit(&omp_rd_19);
-#line 136 "ballAlg.c"
+POMP_Critical_end(&omp_rd_124); }
+POMP_Critical_exit(&omp_rd_124);
+#line 134 "ballAlg.c"
     }
-POMP_Barrier_enter(&omp_rd_18);
+POMP_Barrier_enter(&omp_rd_123);
 #pragma omp barrier
-POMP_Barrier_exit(&omp_rd_18);
-POMP_For_exit(&omp_rd_18);
-POMP_Parallel_end(&omp_rd_18); }
-POMP_Parallel_join(&omp_rd_18);
-#line 137 "ballAlg.c"
+POMP_Barrier_exit(&omp_rd_123);
+POMP_For_exit(&omp_rd_123);
+POMP_Parallel_end(&omp_rd_123); }
+POMP_Parallel_join(&omp_rd_123);
+#line 135 "ballAlg.c"
 }
 
 void orthogonal_projection(double **pts, long *set, double **po, int n_dims, long n_points, long a, long b)
@@ -195,13 +193,13 @@ void orthogonal_projection(double **pts, long *set, double **po, int n_dims, lon
         aux2[j] = aux;
     }
     
-POMP_Parallel_fork(&omp_rd_20);
-#line 152 "ballAlg.c"
-    #pragma omp parallel     private(index_i, num, inn_prod)
-{ POMP_Parallel_begin(&omp_rd_20);
-POMP_For_enter(&omp_rd_20);
-#line 152 "ballAlg.c"
-    #pragma omp          for                                 nowait
+POMP_Parallel_fork(&omp_rd_125);
+#line 150 "ballAlg.c"
+    #pragma omp parallel     if(n_points > 10000) private(index_i, inn_prod) firstprivate(num)                    
+{ POMP_Parallel_begin(&omp_rd_125);
+POMP_For_enter(&omp_rd_125);
+#line 150 "ballAlg.c"
+    #pragma omp          for                                                                                       nowait
     for(long i = 0; i < n_points; i++)
     {
         if(i != a && i != b)
@@ -221,13 +219,13 @@ POMP_For_enter(&omp_rd_20);
             po[b][0] = pts[index_b][0];
         po[i][1] = set[i];
     }
-POMP_Barrier_enter(&omp_rd_20);
+POMP_Barrier_enter(&omp_rd_125);
 #pragma omp barrier
-POMP_Barrier_exit(&omp_rd_20);
-POMP_For_exit(&omp_rd_20);
-POMP_Parallel_end(&omp_rd_20); }
-POMP_Parallel_join(&omp_rd_20);
-#line 172 "ballAlg.c"
+POMP_Barrier_exit(&omp_rd_125);
+POMP_For_exit(&omp_rd_125);
+POMP_Parallel_end(&omp_rd_125); }
+POMP_Parallel_join(&omp_rd_125);
+#line 170 "ballAlg.c"
     free(aux2);
 }
 
@@ -320,12 +318,34 @@ double get_radius(double **pts, long *set, int n_points, int n_dims, double *med
 {
     double dist_aux = 0, radius = 0;
     
+POMP_Parallel_fork(&omp_rd_126);
+#line 262 "ballAlg.c"
+    #pragma omp parallel     if(n_points > 10000) private(dist_aux)                    
+{ POMP_Parallel_begin(&omp_rd_126);
+POMP_For_enter(&omp_rd_126);
+#line 262 "ballAlg.c"
+    #pragma omp          for                                                            nowait
     for(long i = 0; i < n_points; i++)
     {
         dist_aux = get_distance(n_dims, pts[set[i]], median);
+POMP_Critical_enter(&omp_rd_127);
+#line 266 "ballAlg.c"
+        #pragma omp critical (find_radius)
+{ POMP_Critical_begin(&omp_rd_127);
+#line 267 "ballAlg.c"
         if(dist_aux > radius)
             radius = dist_aux;
+POMP_Critical_end(&omp_rd_127); }
+POMP_Critical_exit(&omp_rd_127);
+#line 269 "ballAlg.c"
     }
+POMP_Barrier_enter(&omp_rd_126);
+#pragma omp barrier
+POMP_Barrier_exit(&omp_rd_126);
+POMP_For_exit(&omp_rd_126);
+POMP_Parallel_end(&omp_rd_126); }
+POMP_Parallel_join(&omp_rd_126);
+#line 270 "ballAlg.c"
 
     return radius;
 }
@@ -333,6 +353,7 @@ double get_radius(double **pts, long *set, int n_points, int n_dims, double *med
 void create_sets_LR(long *set_L, long *set_R, double **po, int n_dims, long n_points, double *median, long *l, long *r)
 {    
     long l_aux = 0, r_aux = 0, aux = 0;
+
     for(long i = 0; i < n_points; i++)
     {   
         if(po[i][0] < median[0])
@@ -343,7 +364,7 @@ void create_sets_LR(long *set_L, long *set_R, double **po, int n_dims, long n_po
         else
         {
             set_R[r_aux] = po[i][1];
-            r_aux++;
+            r_aux++;            
         }
     }   
     *l = l_aux;
@@ -368,65 +389,88 @@ struct node* build_tree(double **pts, long *set, int n_dims, long n_points)
         {
             po[i] = (double*)malloc(2 * sizeof(double));
         }
-        #ifdef PRINT_TIME2
-            double  timing1; 
-            double  timing2; 
-            struct timespec t2;
-            clock_gettime(CLOCK_REALTIME, &t2);
-            timing1 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
-        #endif
 
         get_points_ab(pts, set, n_dims, n_points, &a, &b);
-
-        #ifdef PRINT_TIME2
-            clock_gettime(CLOCK_REALTIME, &t2);
-            timing2 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
-            printf("Time for get_points_ab: %f [ms]\n", timing2- timing1);
-        #endif
         
         orthogonal_projection(pts, set, po, n_dims, n_points, a, b);
-
-        #ifdef PRINT_TIME2
-            clock_gettime(CLOCK_REALTIME, &t2);
-            timing1 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
-            printf("Time for orthogonal_projection: %f [ms]\n", timing1- timing2);
-        #endif
         
         median = find_median(pts, set, po, n_dims, n_points, a, b);
-
-        #ifdef PRINT_TIME2
-            clock_gettime(CLOCK_REALTIME, &t2);
-            timing2 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
-            printf("Time for find_median: %f [ms]\n", timing2- timing1);
-        #endif
-
-        radius = get_radius(pts, set, n_points, n_dims, median);
-
-        #ifdef PRINT_TIME2
-            clock_gettime(CLOCK_REALTIME, &t2);
-            timing1 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
-            printf("Time for get_radius: %f [ms]\n", timing1- timing2);
-        #endif
-
-        create_sets_LR(set_L, set_R, po, n_dims, n_points, median, &l, &r);
         
-        #ifdef PRINT_TIME2
-            clock_gettime(CLOCK_REALTIME, &t2);
-            timing2 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
-            printf("Time for create_sets_LR: %f [ms]\n", timing2- timing1);
-        #endif
-
+POMP_Parallel_fork(&omp_rd_128);
+#line 320 "ballAlg.c"
+        #pragma omp parallel          if(n_points > 1000)
+{ POMP_Parallel_begin(&omp_rd_128);
+POMP_Sections_enter(&omp_rd_128);
+#line 320 "ballAlg.c"
+        #pragma omp          sections                     nowait
+        {
+#line 322 "ballAlg.c"
+            #pragma omp section
+{ POMP_Section_begin(&omp_rd_128);
+#line 323 "ballAlg.c"
+            radius = get_radius(pts, set, n_points, n_dims, median);
+POMP_Section_end(&omp_rd_128); }
+#line 324 "ballAlg.c"
+            #pragma omp section
+{ POMP_Section_begin(&omp_rd_128);
+#line 325 "ballAlg.c"
+            create_sets_LR(set_L, set_R, po, n_dims, n_points, median, &l, &r);
+POMP_Section_end(&omp_rd_128); }
+#line 326 "ballAlg.c"
+        }
+POMP_Barrier_enter(&omp_rd_128);
+#pragma omp barrier
+POMP_Barrier_exit(&omp_rd_128);
+POMP_Sections_exit(&omp_rd_128);
+POMP_Parallel_end(&omp_rd_128); }
+POMP_Parallel_join(&omp_rd_128);
+#line 327 "ballAlg.c"
+        
         root = createNode(n_dims, median, radius, node_id);
-
-        #ifdef PRINT_TIME2
-            clock_gettime(CLOCK_REALTIME, &t2);
-            timing1 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
-            printf("Time for createNode: %f [ms]\n", timing1- timing2);
-        #endif
-
-        node_id++; 
-        root->nextL = build_tree(pts, set_L, n_dims, l);
-        root->nextR = build_tree(pts, set_R, n_dims, r);
+POMP_Critical_enter(&omp_rd_129);
+#line 329 "ballAlg.c"
+        #pragma omp critical
+{ POMP_Critical_begin(&omp_rd_129);
+#line 330 "ballAlg.c"
+        node_id++;
+POMP_Critical_end(&omp_rd_129); }
+POMP_Critical_exit(&omp_rd_129);
+#line 330 "ballAlg.c"
+                   
+        
+POMP_Parallel_fork(&omp_rd_130);
+#line 332 "ballAlg.c"
+        #pragma omp parallel  POMP_DLIST_00130
+{ POMP_Parallel_begin(&omp_rd_130);
+#line 333 "ballAlg.c"
+        {
+POMP_Sections_enter(&omp_rd_131);
+#line 334 "ballAlg.c"
+            #pragma omp sections nowait
+            {
+#line 336 "ballAlg.c"
+                #pragma omp section
+{ POMP_Section_begin(&omp_rd_131);
+#line 337 "ballAlg.c"
+                root->nextL = build_tree(pts, set_L, n_dims, l);
+POMP_Section_end(&omp_rd_131); }
+#line 338 "ballAlg.c"
+                #pragma omp section
+{ POMP_Section_begin(&omp_rd_131);
+#line 339 "ballAlg.c"
+                root->nextR = build_tree(pts, set_R, n_dims, r);
+POMP_Section_end(&omp_rd_131); }
+#line 340 "ballAlg.c"
+            }
+POMP_Sections_exit(&omp_rd_131);
+#line 341 "ballAlg.c"
+        }
+POMP_Barrier_enter(&omp_rd_130);
+#pragma omp barrier
+POMP_Barrier_exit(&omp_rd_130);
+POMP_Parallel_end(&omp_rd_130); }
+POMP_Parallel_join(&omp_rd_130);
+#line 342 "ballAlg.c"
         free(set_L);
         free(set_R);
         freepointers(n_points, po);
@@ -435,9 +479,16 @@ struct node* build_tree(double **pts, long *set, int n_dims, long n_points)
     else
     {
         root = createNode(n_dims, median, radius, node_id); 
+POMP_Critical_enter(&omp_rd_132);
+#line 350 "ballAlg.c"
+        #pragma omp critical
+{ POMP_Critical_begin(&omp_rd_132);
+#line 351 "ballAlg.c"
         node_id++;
-    }
-    
+POMP_Critical_end(&omp_rd_132); }
+POMP_Critical_exit(&omp_rd_132);
+#line 352 "ballAlg.c"
+    }  
     return root;    
 }
 
@@ -502,6 +553,7 @@ int main(int argc, char *argv[])
     long* set = (long*)malloc(n_points * sizeof(long)); 
     for(long i = 0; i <n_points; i++)
         set[i] = i;
+    //#pragma omp parallel private(root, pts, set, n_dims, n_points)
     root = build_tree(pts, set, n_dims, n_points);
     exec_time += omp_get_wtime();
     free(pts[0]);
