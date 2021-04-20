@@ -223,13 +223,125 @@ static int comp(const void *p1, const void *p2) {
         return 0;
 }
 
+void quickSort(double **arr, int left, int right) 
+{
+	long i = left, j = right;
+	double tmp1, tmp2;
+	long pivot = arr[(left + right) / 2][0];
+
+  	/* PARTITION PART */
+	while (i <= j) {
+		while (i <= right && arr[i][0] < pivot)
+			i++;
+        //printf("arr[j][0] = %.02lf\n", (arr[j][0]));fflush(stdout);
+		while (j >= left && arr[j][0] > pivot){
+            //printf("lol arr[j][0] = %.02lf\n", (arr[j][0]));fflush(stdout);
+        	j--;
+        }
+		if (i <= j) {
+            printf("arr[i][0] = %.02lf\n", (arr[i][0]));fflush(stdout);
+            printf("arr[j][0] = %.02lf\n", (arr[j][0]));fflush(stdout);
+			tmp1 = arr[i][0];
+            tmp2 = arr[i][1];
+			arr[i][0] = arr[j][0];
+            arr[i][1] = arr[j][1];
+			arr[j][0] = tmp1;
+            arr[j][1] = tmp2;
+			i++;
+			j--;
+		}
+	}
+
+	/* RECURSION PART */
+	if (left < j){ quickSort(arr, left, j);  }
+	if (i< right){ quickSort(arr, i, right); }
+}
+
+void Merge(double **A, double **L, long leftCount, double **R, long rightCount) {
+	long i,j,k;
+
+	// i - to mark the index of left aubarray (L)
+	// j - to mark the index of right sub-raay (R)
+	// k - to mark the index of merged subarray (A)
+	i = 0; j = 0; k =0;
+
+	while(i<leftCount && j< rightCount) {
+		if(L[i][0]  < R[j][0])
+        {
+            A[k][0] = L[i][0];
+            A[k][1] = L[i][1];
+            i++;
+            k++;
+        } 
+		else 
+        {
+            A[k][0] = R[j][0];
+            A[k][1] = R[j][1];
+            j++;
+            k++;
+        }
+	}
+	while(i < leftCount) 
+    {
+        A[k][0] = L[i][0];
+        A[k][1] = L[i][1];
+        i++;
+        k++;
+    }
+	while(j < rightCount)
+    {
+        A[k][0] = R[j][0];
+        A[k][1] = R[j][1];
+        j++;
+        k++;
+    } 
+}
+
+// Recursive function to sort an array of integers. 
+void MergeSort(double **A, long n) {
+	long mid,i;
+    double  **L, **R;
+	if(n < 2) return; // base condition. If the array has less than two element, do nothing. 
+
+	mid = n/2;  // find the mid index. 
+
+	// create left and right subarrays
+	// mid elements (from index 0 till mid-1) should be part of left sub-array 
+	// and (n-mid) elements (from mid to n-1) will be part of right sub-array
+	L = (double**)malloc(mid*sizeof(double*)); 
+	R = (double**)malloc((n- mid)*sizeof(double*)); 
+	for (long i = 0; i < (n-mid); i++)
+    {
+        if(i < mid)
+            L[i] = (double*)malloc(2 * sizeof(double));
+        R[i] = (double*)malloc(2 * sizeof(double));
+    }
+	for(i = 0;i<mid;i++) 
+    {
+        L[i][0] = A[i][0]; // creating left subarray
+        L[i][1] = A[i][1];
+    }
+	for(i = mid;i<n;i++) 
+    {
+        R[i-mid][0] = A[i][0]; // creating right subarray
+        R[i-mid][1] = A[i][1];
+    }
+
+	MergeSort(L,mid);  // sorting the left subarray
+	MergeSort(R,n-mid);  // sorting the right subarray
+	Merge(A,L,mid,R,n-mid);  // Merging L and R into A as sorted list.
+        free(L);
+        free(R);
+}
+
 double *find_median(double **pts, long *set, double **po, int n_dims, long n_points, long a, long b)
 {
     int index = 0, idx1 = 0, idx2 = 0;
     double *median, *median_aux;
 
+    //quickSort(po, 0, n_points-1);
     qsort(po, n_points, sizeof(po[0]), comp);
-
+    //MergeSort(po, n_points);
     if(n_points%2 == 1)
     {        
         index = n_points/2;
