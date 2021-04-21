@@ -309,14 +309,7 @@ struct node* build_tree(double **pts, long *set, int n_dims, long n_points)
     {
         long a, b, l = 0, r = 0;
         double dist;
-        long* set_L = (long*)malloc(n_points * sizeof(long));
-        long* set_R = (long*)malloc(n_points * sizeof(long));
-        double** po = (double**)malloc((n_points) * sizeof(double*));
         
-        for (long i = 0; i < n_points; i++)
-        {
-            po[i] = (double*)malloc(2 * sizeof(double));
-        }
 
         get_points_ab(pts, set, n_dims, n_points, &a, &b);
         
@@ -416,9 +409,14 @@ int main(int argc, char *argv[])
     exec_time = -omp_get_wtime();
     pts = get_points(argc, argv, &n_dims, &n_points);
     long* set = (long*)malloc(n_points * sizeof(long)); 
-    #pragma omp parallel for
-    for(long i = 0; i <n_points; i++)
+    /*long* set_L = (long*)malloc(n_points * sizeof(long));
+    long* set_R = (long*)malloc(n_points * sizeof(long));*/
+    double** po = (double**)malloc((n_points) * sizeof(double*));   
+    for (long i = 0; i < n_points; i++)
+    {
+        po[i] = (double*)malloc(2 * sizeof(double));
         set[i] = i;
+    }
     root = build_tree(pts, set, n_dims, n_points);
     exec_time += omp_get_wtime();
     free(pts[0]);

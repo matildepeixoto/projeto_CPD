@@ -9,6 +9,7 @@
 
 long node_id = 0;
 
+
 struct node* createNode(int n_dims, double *median, double radius, long id) {
 
     struct node* newNode = malloc(sizeof(struct node));
@@ -98,14 +99,14 @@ double get_distance(int n_dims, double *x1, double *x2)
     return dist;
 }
 
-void get_points_ab(double **pts, long *set, int n_dims, long n_points, long *a, long *b)
+void get_points_ab(double **pts, long *set, int n_dims, long n_points, long *a, long *b, long start)
 {
     long i, aux = 0;
     double dist = 0, dist_aux;
 
-    aux = set[0];
+    aux = set[start];
 
-    for(i = 1; i < n_points; i++)
+    for(i = start + 1; i < start + n_points; i++)
     {
         dist_aux = get_distance(n_dims, pts[aux], pts[set[i]]);
         if(dist_aux > dist)
@@ -117,7 +118,7 @@ void get_points_ab(double **pts, long *set, int n_dims, long n_points, long *a, 
     
     dist = 0;
     aux = set[*a];
-    for(i = 0; i < n_points; i++)
+    for(i = start; i < start + n_points; i++)
     {
         dist_aux = get_distance(n_dims, pts[aux], pts[set[i]]);
         if(dist_aux > dist)
@@ -128,7 +129,7 @@ void get_points_ab(double **pts, long *set, int n_dims, long n_points, long *a, 
     }
 }
 
-void orthogonal_projection(double **pts, long *set, double **po, int n_dims, long n_points, long a, long b)
+void orthogonal_projection(double **pts, long *set, double **po, int n_dims, long n_points, long a, long b, long start)
 {
     double den = 0, num = 0, inn_prod = 0, aux = 0;
     double *aux2 = (double *) malloc(n_dims * sizeof(double));
@@ -143,9 +144,9 @@ void orthogonal_projection(double **pts, long *set, double **po, int n_dims, lon
     
     for(long i = 0; i < n_points; i++)
     {
-        if(i != a && i != b)
+        if(i + start != a && i + start != b)
         {   
-            index_i = set[i];
+            index_i = set[start + i];
             for(int j = 0; j < n_dims; j++)
             {
                 num += (pts[index_i][j] - pts[index_a][j]) * aux2[j];
@@ -154,21 +155,24 @@ void orthogonal_projection(double **pts, long *set, double **po, int n_dims, lon
             po[i][0] = (inn_prod * (pts[index_b][0] - pts[index_a][0])) + pts[index_a][0];
             num = 0;
         }
-        else if(i == a)
-            po[a][0] = pts[index_a][0];
+        else if(i + start == a)
+            po[i][0] = pts[index_a][0];
         else
-            po[b][0] = pts[index_b][0];
-        po[i][1] = set[i];
+            po[i][0] = pts[index_b][0];
+        po[i][1] = set[start + i];
     }
+
     free(aux2);
 }
 
-double *calc_median(double **pts, long *set, int n_dims, long i, long a, long b)
+void calc_median(double **pts, long *set, int n_dims, long i, long a, long b, double *median)
 {
+    
     double den = 0, num = 0, inn_prod = 0, aux = 0;
-    double *median = (double*)malloc(n_dims * sizeof(double));
+    
     double *aux2 = (double *) malloc(n_dims * sizeof(double));
     long index_a = set[a], index_b = set[b];
+
 
     for(int j = 0; j < n_dims; j++)
     {
@@ -177,6 +181,8 @@ double *calc_median(double **pts, long *set, int n_dims, long i, long a, long b)
         aux2[j] = aux; 
     }
 
+    
+
     if(i != index_a && i != index_b)
     {
         for(int j = 0; j < n_dims; j++)
@@ -184,11 +190,15 @@ double *calc_median(double **pts, long *set, int n_dims, long i, long a, long b)
             num += (pts[i][j] - pts[index_a][j]) * aux2[j];
         }
         inn_prod = (num/den);
+        
         for(int j = 0; j < n_dims; j++)
         {
             median[j] = (inn_prod * aux2[j]) + pts[index_a][j];
         }
+         
         num = 0;
+
+       
     }
     else if(i == index_a)
     {
@@ -205,9 +215,9 @@ double *calc_median(double **pts, long *set, int n_dims, long i, long a, long b)
         }
     }
 
-    free(aux2);
+    
 
-    return median;
+    free(aux2);
 }
 
 static int comp(const void *p1, const void *p2) {
@@ -334,37 +344,40 @@ void MergeSort(double **A, long n) {
         free(R);
 }
 
-double *find_median(double **pts, long *set, double **po, int n_dims, long n_points, long a, long b)
+void find_median(double **pts, long *set, double **po, int n_dims, long n_points, long a, long b, double *median)
 {
     int index = 0, idx1 = 0, idx2 = 0;
-    double *median, *median_aux;
+    double *median_aux = (double*)malloc(n_dims * sizeof(double));
 
     //quickSort(po, 0, n_points-1);
     qsort(po, n_points, sizeof(po[0]), comp);
     //MergeSort(po, n_points);
+
+
     if(n_points%2 == 1)
     {        
         index = n_points/2;
-        median = calc_median(pts, set, n_dims, po[index][1], a, b);
+        calc_median(pts, set, n_dims, po[index][1], a, b, median);
     }
     else
     {
         idx1 = n_points/2;
         idx2 = idx1 - 1;
-        median = calc_median(pts, set, n_dims, po[idx1][1], a, b);
-        median_aux = calc_median(pts, set, n_dims, po[idx2][1], a, b);
+        calc_median(pts, set, n_dims, po[idx1][1], a, b, median);
+        calc_median(pts, set, n_dims, po[idx2][1], a, b, median_aux);
         for (int i = 0; i < n_dims; i++)
             median[i] = (median[i] + median_aux[i])/2;
     }
 
-    return median;
+    free(median_aux);
+
 }
 
-double get_radius(double **pts, long *set, int n_points, int n_dims, double *median)
+double get_radius(double **pts, long *set, int n_points, int n_dims, double *median, long start)
 {
     double dist_aux = 0, radius = 0;
     
-    for(long i = 0; i < n_points; i++)
+    for(long i = start; i < start + n_points; i++)
     {
         dist_aux = get_distance(n_dims, pts[set[i]], median);
         if(dist_aux > radius)
@@ -374,111 +387,108 @@ double get_radius(double **pts, long *set, int n_points, int n_dims, double *med
     return radius;
 }
 
-void create_sets_LR(long *set_L, long *set_R, double **po, int n_dims, long n_points, double *median, long *l, long *r)
+void create_sets_LR(long *set, double **po, int n_dims, long n_points, double *median, long *l, long *r, long start)
 {    
-    long l_aux = 0, r_aux = 0, aux = 0;
+    long l_aux = 0, r_aux = n_points/2;
     for(long i = 0; i < n_points; i++)
     {   
         if(po[i][0] < median[0])
         {
-            set_L[l_aux] = po[i][1];
+            set[start + l_aux] = po[i][1];
             l_aux++;
         }
         else
         {
-            set_R[r_aux] = po[i][1];
+            set[start + r_aux] = po[i][1];
             r_aux++;
         }
     }   
     *l = l_aux;
-    *r = r_aux;
+    *r = r_aux - n_points/2;
 }
 
-struct node* build_tree(double **pts, long *set, int n_dims, long n_points)
+struct node* build_tree(double **pts, long *set, double **po, int n_dims, long n_points, double *median, long start, int level)
 {   
     double radius = 0;
-    double *median = pts[set[0]];
     struct node* root;
     
     if(n_points > 1)
     {
         long a, b, l = 0, r = 0;
         double dist;
-        long* set_L = (long*)malloc(n_points * sizeof(long));
-        long* set_R = (long*)malloc(n_points * sizeof(long));
-        double** po = (double**)malloc((n_points) * sizeof(double*));
-        
-        for (long i = 0; i < n_points; i++)
-        {
-            po[i] = (double*)malloc(2 * sizeof(double));
-        }
+
+
+        /*
         #ifdef PRINT_TIME2
             double  timing1; 
             double  timing2; 
             struct timespec t2;
             clock_gettime(CLOCK_REALTIME, &t2);
             timing1 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
-        #endif
+        #endif*/
 
-        get_points_ab(pts, set, n_dims, n_points, &a, &b);
+        get_points_ab(pts, set, n_dims, n_points, &a, &b, start);
 
-        #ifdef PRINT_TIME2
+        /*#ifdef PRINT_TIME2
             clock_gettime(CLOCK_REALTIME, &t2);
             timing2 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
             printf("Time for get_points_ab: %f [ms]\n", timing2- timing1);
-        #endif
+        #endif*/
         
-        orthogonal_projection(pts, set, po, n_dims, n_points, a, b);
+        orthogonal_projection(pts, set, po, n_dims, n_points, a, b, start);
 
-        #ifdef PRINT_TIME2
+        /*#ifdef PRINT_TIME2
             clock_gettime(CLOCK_REALTIME, &t2);
             timing1 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
             printf("Time for orthogonal_projection: %f [ms]\n", timing1- timing2);
-        #endif
-        
-        median = find_median(pts, set, po, n_dims, n_points, a, b);
+        #endif*/
 
-        #ifdef PRINT_TIME2
+        
+        find_median(pts, set, po, n_dims, n_points, a, b, median);
+
+        /*#ifdef PRINT_TIME2
             clock_gettime(CLOCK_REALTIME, &t2);
             timing2 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
             printf("Time for find_median: %f [ms]\n", timing2- timing1);
-        #endif
+        #endif*/
 
-        radius = get_radius(pts, set, n_points, n_dims, median);
+        radius = get_radius(pts, set, n_points, n_dims, median, start);
 
-        #ifdef PRINT_TIME2
+        /* #ifdef PRINT_TIME2
             clock_gettime(CLOCK_REALTIME, &t2);
             timing1 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
             printf("Time for get_radius: %f [ms]\n", timing1- timing2);
-        #endif
+        #endif */
 
-        create_sets_LR(set_L, set_R, po, n_dims, n_points, median, &l, &r);
+        create_sets_LR(set, po, n_dims, n_points, median, &l, &r, start);
         
-        #ifdef PRINT_TIME2
+        /* #ifdef PRINT_TIME2
             clock_gettime(CLOCK_REALTIME, &t2);
             timing2 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
             printf("Time for create_sets_LR: %f [ms]\n", timing2- timing1);
-        #endif
+        #endif */
 
         root = createNode(n_dims, median, radius, node_id);
 
-        #ifdef PRINT_TIME2
+       /*  #ifdef PRINT_TIME2
             clock_gettime(CLOCK_REALTIME, &t2);
             timing1 = (((double)t2.tv_sec)*1000.0) + (((double)t2.tv_nsec)/1000000.0);
             printf("Time for createNode: %f [ms]\n", timing1- timing2);
-        #endif
+        #endif */
 
+        
         node_id++; 
-        root->nextL = build_tree(pts, set_L, n_dims, l);
-        root->nextR = build_tree(pts, set_R, n_dims, r);
-        free(set_L);
-        free(set_R);
-        freepointers(n_points, po);
-        free(median);
+        level++;
+        
+        root->nextL = build_tree(pts, set, po, n_dims, l, median, start, level);
+        root->nextR = build_tree(pts, set, po, n_dims, r, median, start + l, level); // -----------------
+        
+        
     }
     else
     {
-        root = createNode(n_dims, median, radius, node_id); 
+        //for(long i = 0; i < n_dims; i++) median[i] = pts[set[start]][i];
+        root = createNode(n_dims, pts[set[start]], radius, node_id); 
         node_id++;
     }
     
@@ -544,14 +554,22 @@ int main(int argc, char *argv[])
     exec_time = -omp_get_wtime();
     pts = get_points(argc, argv, &n_dims, &n_points);
     long* set = (long*)malloc(n_points * sizeof(long)); 
-    for(long i = 0; i <n_points; i++)
+    double *median = (double*)malloc(n_dims * sizeof(double));
+    double** po = (double**)malloc((n_points) * sizeof(double*));
+    for (long i = 0; i < n_points; i++)
+    {
         set[i] = i;
-    root = build_tree(pts, set, n_dims, n_points);
+        po[i] = (double*)malloc(2 * sizeof(double));
+    }
+    root = build_tree(pts, set, po, n_dims, n_points, median, 0, 0);
     exec_time += omp_get_wtime();
     free(pts[0]);
     free(pts);
+    freepointers(n_points, po);
+    free(median);
     fprintf(stderr, "%.10lf\n", exec_time);
     printf("%d %ld\n", n_dims, node_id);
-    print_tree(root, n_dims);
+    //print_tree(root, n_dims);
+    
     //dump_tree(root); // to the stdout!
 }
