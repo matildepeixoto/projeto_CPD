@@ -22,7 +22,7 @@ void orthogonal_projection(double **pts, long *set, double **po, int n_dims, lon
 void calc_median(double **pts, long *set, int n_dims, long i, long a, long b, double *median);
 static int comp(const void *p1, const void *p2);
 void find_median(double **pts, long *set, double **po, int n_dims, long n_points, long a, long b, double *median);
-double get_radius(double **pts, long *set, int n_points, int n_dims, double *median);
+double get_radius(double **pts, long *set, long n_points, int n_dims, double *median);
 void create_sets_LR(long *set, double **po, int n_dims, long n_points, double *median, long *l, long *r);
 void freepointers(long n, double** pointer);
 
