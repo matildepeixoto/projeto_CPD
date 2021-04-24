@@ -405,7 +405,7 @@ int main(int argc, char *argv[])
     free(pts);
     freepointers(n_points, po);
     
-    fprintf(stderr, "%.10lf\n", exec_time);
+    fprintf(stderr, "%.1lf\n", exec_time);
     printf("%d %ld\n", n_dims, node_id + 1);
     print_tree(root, n_dims);
 }
