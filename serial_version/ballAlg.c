@@ -99,6 +99,9 @@ void get_points_ab(double **pts, long *set, int n_dims, long n_points, long *a, 
 
     aux = set[0];
 
+    *a = 0;
+    *b = 1;
+
     for(i = 1; i < n_points; i++)
     {
         dist_aux = get_distance(n_dims, pts[aux], pts[set[i]]);
@@ -108,7 +111,7 @@ void get_points_ab(double **pts, long *set, int n_dims, long n_points, long *a, 
             *a = i;
         }
     }
-    
+
     dist = 0;
     aux = set[*a];
 
@@ -388,5 +391,5 @@ int main(int argc, char *argv[])
     freepointers(n_points, po);
     fprintf(stderr, "%.10lf\n", exec_time);
     printf("%d %ld\n", n_dims, node_id);
-    //print_tree(root, n_dims);
+    print_tree(root, n_dims);
 }

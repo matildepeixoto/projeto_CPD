@@ -100,7 +100,7 @@ void get_points_ab(double **pts, long *set, int n_dims, long n_points, long *a, 
     aux = set[0];
 
     *a = 0;
-    *b = 0;
+    *b = 1;
 
     for(i = 1; i < n_points; i++)
     {
@@ -133,7 +133,7 @@ void orthogonal_projection(double **pts, long *set, double **po, int n_dims, lon
     double den = 0, num = 0, inn_prod = 0, aux = 0;
     double *aux2 = (double *) malloc(n_dims * sizeof(double));
     long index_a = set[a], index_b = set[b], index_i = 0;
-    //tirar
+
     for(int j = 0; j < n_dims; j++)
     {
         aux = pts[index_b][j] - pts[index_a][j];
@@ -239,9 +239,6 @@ void find_median(double **pts, long *set, double **po, int n_dims, long n_points
         double  *median_aux = (double *)malloc(n_dims * sizeof(double)); 
         idx1 = n_points/2;
         idx2 = idx1 - 1;
-        //calcular a mediana primeiro
-        /*for (int i = 0; i < n_dims; i++)
-            median[i] = (pts[idx1][i] + pts[idx2][i])/2;*/
         calc_median(pts, set, n_dims, po[idx1][1], a, b, median);
         calc_median(pts, set, n_dims, po[idx2][1], a, b, median_aux);
         for (int i = 0; i < n_dims; i++)
@@ -410,5 +407,5 @@ int main(int argc, char *argv[])
     
     fprintf(stderr, "%.10lf\n", exec_time);
     printf("%d %ld\n", n_dims, node_id + 1);
-    //print_tree(root, n_dims);
+    print_tree(root, n_dims);
 }
