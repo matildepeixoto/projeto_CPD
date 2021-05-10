@@ -4,6 +4,7 @@
 struct node {
   long id;
   double *center;
+  long leaf;
   double radius;
   struct node *nextL; 
   struct node *nextR;

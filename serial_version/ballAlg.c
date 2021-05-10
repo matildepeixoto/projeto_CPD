@@ -87,8 +87,6 @@ double get_distance(int n_dims, double *x1, double *x2)
         dist = dist + (x1[i] - x2[i]) * (x1[i] - x2[i]);
     }
 
-    dist = sqrt(dist);
-
     return dist;
 }
 
@@ -256,7 +254,7 @@ double get_radius(double **pts, long *set, long n_points, int n_dims, double *me
         if(dist_aux > radius)
             radius = dist_aux;
     }
-
+    radius = sqrt(radius);
     return radius;
 }
 
@@ -312,14 +310,17 @@ struct node* build_tree(double **pts, long *set, double **po, int n_dims, long n
     else
     {
         root->radius = 0;
-        for(int i = 0; i < n_dims; i++)
+        root->leaf = set[0];
+        //printf("%ld %.2lf\n", root->leaf, pts[root->leaf][0]);
+        /*for(int i = 0; i < n_dims; i++)
             root->center[i] = pts[set[0]][i];
+        */
     }
     
     return root;    
 }
 
-void print_tree(struct node* Tree, int n_dims)
+void print_tree(struct node* Tree, int n_dims, double** pts)
 {
     struct node* tempL = Tree;
     struct node* tempR = Tree;
@@ -334,12 +335,20 @@ void print_tree(struct node* Tree, int n_dims)
     else
         printf("  %ld", (tempL->nextR)->id);
     printf("  %.6lf", tempL->radius);
-    for(int i = 0; i < n_dims; i++)
-        printf("  %.6lf", tempL->center[i]);
+    if(tempL->nextL == NULL){
+        //printf("\nhey %ld\n", tempL->leaf);
+        for(int i = 0; i < n_dims; i++){
+            printf("  %.6lf", pts[tempL->leaf][i]);
+        }
+    }
+    else{
+        for(int i = 0; i < n_dims; i++)
+            printf("  %.6lf", tempL->center[i]);
+    }
     printf("\n");
     tempL = tempL->nextL;
     if (tempL != NULL)
-        print_tree(tempL, n_dims);
+        print_tree(tempL, n_dims, pts);
     else
     {
         free(Tree->center);
@@ -348,7 +357,7 @@ void print_tree(struct node* Tree, int n_dims)
     }
     tempR = tempR->nextR;
     if (tempR != NULL)
-        print_tree(tempR, n_dims);
+        print_tree(tempR, n_dims, pts);
     else
     {
         free(Tree->center);
@@ -386,10 +395,10 @@ int main(int argc, char *argv[])
     }
     root = build_tree(pts, set, po, n_dims, n_points);
     exec_time += omp_get_wtime();
-    free(pts[0]);
-    free(pts);
     freepointers(n_points, po);
     fprintf(stderr, "%.1lf\n", exec_time);
     printf("%d %ld\n", n_dims, node_id);
-    print_tree(root, n_dims);
+    print_tree(root, n_dims, pts);
+    free(pts[0]);
+    free(pts);
 }
