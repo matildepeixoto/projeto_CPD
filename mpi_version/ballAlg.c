@@ -3,16 +3,20 @@
 #include <math.h>
 #include <time.h>
 #include <mpi.h>
+#include <omp.h>
+#include <unistd.h>
 #include "ballAlg.h"
 
 #define RANGE 10
 
 long node_id = 0;
 
-struct node* createNode(int n_dims) {
+struct node* createNode(int n_dims, int p) {
 
     struct node* newNode = malloc(sizeof(struct node));
     newNode->center = (double*) malloc(n_dims * sizeof(double));
+    newNode->procsList = (int*) malloc(p * sizeof(int));
+    newNode->leaf = -1;
     newNode->nextL = NULL;
     newNode->nextR = NULL;
 
@@ -48,6 +52,7 @@ double **get_points(int argc, char *argv[], int *n_dims, long *np)
 
     if(argc != 4){
         printf("Usage: %s <n_dims> <n_points> <seed>\n", argv[0]);
+        sleep(2);
         exit(1);
     }
 
@@ -55,6 +60,7 @@ double **get_points(int argc, char *argv[], int *n_dims, long *np)
 
     if(*n_dims < 2){
         printf("Illegal number of dimensions (%d), must be above 1.\n", *n_dims);
+        sleep(2);
         exit(2);
     }
 
@@ -62,6 +68,7 @@ double **get_points(int argc, char *argv[], int *n_dims, long *np)
 
     if(*np < 1){
         printf("Illegal number of points (%ld), must be above 0.\n", *np);
+        sleep(2);
         exit(3);
     }
     
@@ -90,9 +97,76 @@ double get_distance(int n_dims, double *x1, double *x2)
     return dist;
 }
 
+void get_points_ab_mpi(double **pts, long *set, int n_dims, long n_points, long *a, long *b, int id, int p, MPI_Comm comm)
+{
+    long i = 0, aux = 0, gi = 0;
+    double dist = 0, dist_aux, gdist = 0;
+    MPI_Status status;
+
+    aux = set[0];
+
+    *a = 0;
+    *b = 1;
+
+    long size = BLOCK_SIZE(id, p, n_points);
+    for(i = 0; i < size; i++)
+    {
+        gi = i + BLOCK_LOW(id, p, n_points);
+        dist_aux = get_distance(n_dims, pts[aux], pts[set[gi]]);
+        if(dist_aux > dist)
+        {
+            dist = dist_aux;
+            *a = gi;
+        }
+    }
+
+    MPI_Allreduce(&dist, &gdist, 1, MPI_DOUBLE, MPI_MAX, comm);
+    if(gdist == dist)
+    {
+        for(i = 0; i < p; i++)
+        {
+            if(i != id)
+                MPI_Send(a, 1, MPI_LONG, i, 1, comm);
+        }
+        
+    }
+    else
+    {
+        MPI_Recv(a, 1, MPI_DOUBLE, MPI_ANY_SOURCE, 1, comm, &status);
+    }
+    
+    dist = 0;
+    aux = set[*a];
+
+    for(i = 0; i < size; i++)
+    {
+        gi = i + BLOCK_LOW(id, p, n_points);
+        dist_aux = get_distance(n_dims, pts[aux], pts[set[gi]]);
+        if(dist_aux > dist)
+        {
+            dist = dist_aux;
+            *b = gi;
+        }
+    }
+
+    MPI_Allreduce(&dist, &gdist, 1, MPI_DOUBLE, MPI_MAX, comm);
+    if(gdist == dist)
+    {
+        for(i = 0; i < p; i++)
+        {
+            if(i != id)
+                MPI_Send(b, 1, MPI_LONG, i, 1, comm);
+        }       
+    }
+    else
+    {
+        MPI_Recv(b, 1, MPI_DOUBLE, MPI_ANY_SOURCE, 1, comm, &status);
+    }
+}
+
 void get_points_ab(double **pts, long *set, int n_dims, long n_points, long *a, long *b)
 {
-    long i, aux = 0;
+    long i, aux = 0, index;
     double dist = 0, dist_aux;
 
     aux = set[0];
@@ -102,26 +176,94 @@ void get_points_ab(double **pts, long *set, int n_dims, long n_points, long *a, 
 
     for(i = 1; i < n_points; i++)
     {
-        dist_aux = get_distance(n_dims, pts[aux], pts[set[i]]);
+        index = set[i];
+        dist_aux = get_distance(n_dims, pts[aux], pts[index]);
         if(dist_aux > dist)
         {
             dist = dist_aux;
             *a = i;
         }
     }
-
+    
     dist = 0;
     aux = set[*a];
 
     for(i = 0; i < n_points; i++)
     {
-        dist_aux = get_distance(n_dims, pts[aux], pts[set[i]]);
+        index = set[i];
+        dist_aux = get_distance(n_dims, pts[aux], pts[index]);
         if(dist_aux > dist)
         {
             dist = dist_aux;
             *b = i;
         }
     }
+}
+
+void orthogonal_projection_mpi(double **pts, long *set, double **po, int n_dims, long n_points, long a, long b, int id, int p,  MPI_Comm comm)
+{
+    double den = 0, num = 0, inn_prod = 0, aux = 0;
+    double *aux2 = (double *) malloc(n_dims * sizeof(double));
+    long index_a = set[a], index_b = set[b], index_i = 0, gi = 0;
+    long size = BLOCK_SIZE(id, p, n_points);
+
+    MPI_Request *requests0 = (MPI_Request *) malloc((n_points - size)* sizeof(MPI_Request));
+    MPI_Status *statuses0 = (MPI_Status *) malloc((n_points - size)* sizeof(MPI_Status));
+
+    MPI_Request *requests = (MPI_Request *) malloc(size* sizeof(MPI_Request));
+    MPI_Status *statuses = (MPI_Status *) malloc(size* sizeof(MPI_Status));
+
+
+
+    for(int j = 0; j < n_dims; j++)
+    {
+        aux = pts[index_b][j] - pts[index_a][j];
+        den += aux * aux;
+        aux2[j] = aux;
+    }
+    
+    
+    
+    for(long i = 0; i < size; i++)
+    {
+        gi = i + BLOCK_LOW(id, p, n_points);
+        if(i != a && i != b)
+        {   
+            index_i = set[gi];
+            for(int j = 0; j < n_dims; j++)
+            {
+                num += (pts[index_i][j] - pts[index_a][j]) * aux2[j];
+            }
+            inn_prod = (num/den);
+            po[gi][0] = (inn_prod * (pts[index_b][0] - pts[index_a][0])) + pts[index_a][0];
+            num = 0;
+        }
+        else if(gi == a)
+            po[gi][0] = pts[index_a][0];
+        else
+            po[gi][0] = pts[index_b][0];
+        po[gi][1] = set[i];
+
+        if(id != 0)
+            MPI_Isend(po[gi], 2, MPI_DOUBLE, 0, gi, comm, &requests[i]);
+    }
+
+    if (id == 0)
+    {
+        for(long j = BLOCK_LOW(1, p, n_points); j < n_points; j++)
+            MPI_Irecv(po[j], 2, MPI_DOUBLE, MPI_ANY_SOURCE, j, comm, &requests0[j - size]);
+    }
+ 
+    if(id == 0)
+        MPI_Waitall(n_points - size, requests0, statuses0);
+    else
+        MPI_Waitall(size, requests, statuses);
+
+    free(statuses);
+    free(requests);
+    free(statuses0);
+    free(requests0);
+    free(aux2);
 }
 
 void orthogonal_projection(double **pts, long *set, double **po, int n_dims, long n_points, long a, long b)
@@ -136,7 +278,7 @@ void orthogonal_projection(double **pts, long *set, double **po, int n_dims, lon
         den += aux * aux;
         aux2[j] = aux;
     }
-    
+
     for(long i = 0; i < n_points; i++)
     {
         if(i != a && i != b)
@@ -151,12 +293,11 @@ void orthogonal_projection(double **pts, long *set, double **po, int n_dims, lon
             num = 0;
         }
         else if(i == a)
-            po[i][0] = pts[index_a][0];
+            po[a][0] = pts[index_a][0];
         else
-            po[i][0] = pts[index_b][0];
+            po[b][0] = pts[index_b][0];
         po[i][1] = set[i];
     }
-
     free(aux2);
 }
 
@@ -220,7 +361,7 @@ static int comp(const void *p1, const void *p2) {
         return 0;
 }
 
-procedure quicksort(array, left, right)
+/*procedure quicksort(array, left, right)
 {
 
     if(right > left)
@@ -246,7 +387,7 @@ function partition(array, left, right, pivotIndex)
     swap array[storeIndex] and array[right]
 
     return storeIndex;
-}
+}*/
 
 void find_median(double **pts, long *set, double **po, int n_dims, long n_points, long a, long b, double *median)
 {
@@ -307,33 +448,80 @@ void create_sets_LR(long *set, double **po, int n_dims, long n_points, double *m
     *r = r_aux - n_points/2;
 }
 
-struct node* build_tree(double **pts, long *set, double **po, int n_dims, long n_points)
+struct node* build_tree_mpi(double **pts, long *set, double **po, int n_dims, long n_points, int gid, int id, int gp, int p, MPI_Comm comm, int *procsList)
 {   
+    int new_id, new_p, id_bcast;
     double radius = 0;
     struct node* root;
+    
+    //MPI_Status status;
 
-    root = createNode(n_dims);
-
-    root->id = node_id;
-    node_id++; 
+    root = createNode(n_dims, p);
+    
+    for(int i = 0; i < p; i++)
+        root->procsList[i] = procsList[i];
+    root->sizeList = p;
+    //root->id = node_id;
+    if(gid == root->procsList[0])
+    {
+        node_id++;   
+        /*for(int i = 0; i < gp; i++)
+        {
+            if(i != gid)
+                MPI_Send(&node_id, 1, MPI_LONG, i, 4, MPI_COMM_WORLD);
+        } */    
+    }
+    /*else
+    {
+        MPI_Recv(&node_id, 1, MPI_LONG, MPI_ANY_SOURCE, 4, MPI_COMM_WORLD, &status);
+    }*/
     
     if(n_points > 1)
     {
         long a, b, l = 0, r = 0;
         double dist;
-
-        get_points_ab(pts, set, n_dims, n_points, &a, &b);
         
-        orthogonal_projection(pts, set, po, n_dims, n_points, a, b);
+        get_points_ab_mpi(pts, set, n_dims, n_points, &a, &b, id, p, comm);
 
-        find_median(pts, set, po, n_dims, n_points, a, b, root->center);
-
-        root->radius = get_radius(pts, set, n_points, n_dims, root->center);
-
-        create_sets_LR(set, po, n_dims, n_points, root->center, &l, &r);      
+        //orthogonal_projection_mpi(pts, set, po, n_dims, n_points, a, b, id, p, comm);
         
-        root->nextL = build_tree(pts, set, po, n_dims, l);
-        root->nextR = build_tree(pts, &set[l], &po[l], n_dims, r);       
+
+        /*if ( id == 0 )
+        {*/
+            //printf("here %d\n", gid);
+            orthogonal_projection(pts, set, po, n_dims, n_points, a, b);
+
+            find_median(pts, set, po, n_dims, n_points, a, b, root->center);
+
+            root->radius = get_radius(pts, set, n_points, n_dims, root->center);
+
+        
+            create_sets_LR(set, po, n_dims, n_points, root->center, &l, &r);  
+        //}
+        if(p > 1)
+        {
+            MPI_Comm new_comm;
+            int color = id/(p/2);
+            MPI_Comm_split(comm, color, id, &new_comm);
+            MPI_Comm_rank(new_comm, &new_id);
+            MPI_Comm_size(new_comm, &new_p);
+            if(id < p/2){
+                //printf("left id: %d %d \n", id, new_id);
+                root->nextL = build_tree_mpi(pts, set, po, n_dims, l, gid, new_id, gp, new_p, new_comm, procsList);
+            }
+            else{
+                //printf("right id: %d %d \n", id, new_id);
+                root->nextR = build_tree_mpi(pts, &set[l], &po[l], n_dims, r, gid, new_id, gp, new_p, new_comm, &procsList[new_p]);  
+            }
+        }
+        else
+        {
+            #pragma omp task shared(root) //final(2^level > num_t)
+            root->nextL = build_tree(pts, set, po, n_dims, l, procsList);
+            #pragma omp task shared(root) //final(2^level > num_t)
+            root->nextR = build_tree(pts, &set[l], &po[l], n_dims, r, procsList);
+        }
+         
     }
     else
     {
@@ -344,48 +532,86 @@ struct node* build_tree(double **pts, long *set, double **po, int n_dims, long n
     return root;    
 }
 
-void print_tree(struct node* Tree, int n_dims, double** pts)
+struct node* build_tree(double **pts, long *set, double **po, int n_dims, long n_points, int *procsList)
+{   
+    struct node* root;
+    
+    root = createNode(n_dims, 1);
+
+    #pragma omp critical
+    {
+        root->procsList[0] = procsList[0];
+        root->sizeList = 1;
+        node_id++; 
+        //MPI_Bcast(&node_id, 1, MPI_LONG, procsList[0], MPI_COMM_WORLD);
+        root->id = node_id;
+    }
+    
+    if(n_points > 1)
+    {
+        long a, b, l = 0, r = 0;
+        double dist;
+              
+        get_points_ab(pts, set, n_dims, n_points, &a, &b);
+        
+        orthogonal_projection(pts, set, po, n_dims, n_points, a, b);
+        
+        find_median(pts, set, po, n_dims, n_points, a, b, root->center);
+
+        root->radius = get_radius(pts, set, n_points, n_dims, root->center);
+        
+        create_sets_LR(set, po, n_dims, n_points, root->center, &l, &r);
+
+        #pragma omp task shared(root) //final(2^level > num_t)
+        root->nextL = build_tree(pts, set, po, n_dims, l, procsList);
+        #pragma omp task shared(root) //final(2^level > num_t)
+        root->nextR = build_tree(pts, &set[l], &po[l], n_dims, r, procsList); 
+    }
+    else
+    {
+        root->radius = 0;
+        root->leaf = set[0];
+    }  
+
+    return root;    
+}
+
+void print_tree(struct node* Tree, int n_dims, double** pts, int id)
 {
+    int check = 0;
+    long id_parent = 0;
     struct node* tempL = Tree;
     struct node* tempR = Tree;
-    
-    printf("%ld", tempL->id);
-    if(tempL->nextL == NULL)
-        printf(" -1");
-    else
-        printf("  %ld", (tempL->nextL)->id);
-    if(tempL->nextR == NULL)
-        printf(" -1");
-    else
-        printf("  %ld", (tempL->nextR)->id);
-    printf("  %.6lf", tempL->radius);
-    if(tempL->nextL == NULL){
-        for(int i = 0; i < n_dims; i++){
-            printf("  %.6lf", pts[tempL->leaf][i]);
+
+    id_parent = tempL->id;
+    if(id == tempL->procsList[0])
+    {
+        if(tempL->nextL == NULL)
+            printf("%ld -1 -1 %.6lf", tempL->id, tempL->radius);
+        else
+            printf("%ld %ld %ld %.6lf", tempL->id, 2*id_parent + 1, 2*id_parent + 2, tempL->radius);
+        if(tempL->nextL == NULL){
+            for(int i = 0; i < n_dims; i++){
+                printf("  %.6lf", pts[tempL->leaf][i]);
+            }
         }
+        else{
+            for(int i = 0; i < n_dims; i++)
+                printf("  %.6lf", tempL->center[i]);
+        }
+        printf("\n"); 
     }
-    else{
-        for(int i = 0; i < n_dims; i++)
-            printf("  %.6lf", tempL->center[i]);
-    }
-    printf("\n");
     tempL = tempL->nextL;
-    if (tempL != NULL)
-        print_tree(tempL, n_dims, pts);
-    else
+    if(tempL != NULL)
     {
-        free(Tree->center);
-        free(Tree);
-        return;
+        tempL->id = 2*id_parent + 1;
+        print_tree(tempL, n_dims, pts, id);
     }
-    tempR = tempR->nextR;
-    if (tempR != NULL)
-        print_tree(tempR, n_dims, pts);
-    else
+    tempR = tempR->nextR; 
+    if(tempR != NULL)
     {
-        free(Tree->center);
-        free(Tree);
-        return;
+        tempR->id = 2*id_parent + 2;
+        print_tree(tempR, n_dims, pts, id);
     }
     free(Tree->center);
     free(Tree);
@@ -403,15 +629,20 @@ int main(int argc, char *argv[])
 {
     double exec_time;
     double **pts;
-    int n_dims, me;
-    long n_points;
+    int n_dims, me, nprocs;
+    long n_points, total_nodes;
     struct node* root;
 
     MPI_Init(&argc, &argv);
     MPI_Barrier (MPI_COMM_WORLD);
+    MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &me);
     exec_time = - MPI_Wtime();
-    
+
+    int *procsList = (int*)malloc(nprocs * sizeof(int)); ;
+    for(int i = 0; i < nprocs; i++)
+        procsList[i] = i;
+
     pts = get_points(argc, argv, &n_dims, &n_points);
     long* set = (long*)malloc(n_points * sizeof(long)); 
     double** po = (double**)malloc((n_points) * sizeof(double*));
@@ -420,18 +651,23 @@ int main(int argc, char *argv[])
         set[i] = i;
         po[i] = (double*)malloc(2 * sizeof(double));
     }
-    root = build_tree(pts, set, po, n_dims, n_points);
+    root = build_tree_mpi(pts, set, po, n_dims, n_points, me, me, nprocs, nprocs, MPI_COMM_WORLD, procsList);
 
     exec_time += MPI_Wtime();
     
     freepointers(n_points, po);
-      
+    MPI_Reduce(&node_id, &total_nodes, 1, MPI_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
     if(me == 0)
     {
         fprintf(stderr, "%.1lf\n", exec_time);
-        printf("%d %ld\n", n_dims, node_id);
-        print_tree(root, n_dims, pts);
-    }        
+        printf("%d %ld\n", n_dims, total_nodes);
+  
+    } 
+    MPI_Barrier(MPI_COMM_WORLD);
+    root->id = 0;
+    print_tree(root, n_dims, pts, me); 
+    
     free(pts[0]);
     free(pts);
 

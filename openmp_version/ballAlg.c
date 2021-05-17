@@ -283,7 +283,7 @@ void create_sets_LR(long *set, double **po, int n_dims, long n_points, double *m
     *r = r_aux - n_points/2;
 }
 
-struct node* build_tree(double **pts, long *set, double **po, int n_dims, long n_points)
+struct node* build_tree(double **pts, long *set, double **po, int n_dims, long n_points, int level, int num_t)
 {   
     
     struct node* root;
@@ -309,12 +309,13 @@ struct node* build_tree(double **pts, long *set, double **po, int n_dims, long n
 
         root->radius = get_radius(pts, set, n_points, n_dims, root->center);
         
-        create_sets_LR(set, po, n_dims, n_points, root->center, &l, &r);        
-        
-        #pragma omp task shared(root) 
-        root->nextL = build_tree(pts, set, po, n_dims, l);
-        #pragma omp task shared(root)
-        root->nextR = build_tree(pts, &set[l], &po[l], n_dims, r); 
+        create_sets_LR(set, po, n_dims, n_points, root->center, &l, &r);  
+
+        level++;
+        #pragma omp task shared(root) //final(2^level > num_t)
+        root->nextL = build_tree(pts, set, po, n_dims, l, level, num_t);
+        #pragma omp task shared(root) //final(2^level > num_t)
+        root->nextR = build_tree(pts, &set[l], &po[l], n_dims, r, level, num_t); 
     }
     else
     {
@@ -392,11 +393,12 @@ int main(int argc, char *argv[])
         po[i] = (double*)malloc(2 * sizeof(double));
         set[i] = i;
     }
-
+    
     #pragma omp parallel firstprivate(set, po, pts)  
     {
+        int n = omp_get_num_threads();
         #pragma omp single  
-        root = build_tree(pts, set, po, n_dims, n_points);
+        root = build_tree(pts, set, po, n_dims, n_points, 0, n);
     }
     exec_time += omp_get_wtime();
     free(pts[0]);
