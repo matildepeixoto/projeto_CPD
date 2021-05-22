@@ -447,6 +447,27 @@ void find_median(double **pts, long *set, double **po, int n_dims, long n_points
     }
 }
 
+double get_radius_mpi(double **pts, long *set, long n_points, int n_dims, double *median, int id, int p,  MPI_Comm comm)
+{
+    double dist_aux = 0, radius = 0, gradius = 0;
+
+    long gi = 0, size = BLOCK_SIZE(id, p, n_points), pos_init = BLOCK_LOW(id, p, n_points);
+    
+    for(long i = 0; i < size; i++)
+    {
+        gi = i + pos_init;
+
+        dist_aux = get_distance(n_dims, pts[set[gi]], median);
+        if(dist_aux > radius)
+            radius = dist_aux;
+    }
+
+    MPI_Allreduce(&radius, &gradius, 1, MPI_DOUBLE, MPI_MAX, comm);
+
+    radius = sqrt(gradius);
+    return radius;
+}
+
 double get_radius(double **pts, long *set, long n_points, int n_dims, double *median)
 {
     double dist_aux = 0, radius = 0;
@@ -541,8 +562,8 @@ struct node* build_tree_mpi(double **pts, long *set, double **po, double **aux_a
                 printf("%d &(test[%d][0]): %p &(test[%d][1]): %p \n", gid, i, &(test[i][0]), i, &(test[i][1]));
             } */
 
-            root->radius = get_radius(pts, set, n_points, n_dims, root->center);
-
+            //root->radius = get_radius(pts, set, n_points, n_dims, root->center);
+            root->radius = get_radius_mpi(pts, set, n_points, n_dims, root->center, id, p, comm);
         
             create_sets_LR(set, po, n_dims, n_points, root->center, &l, &r); 
             
