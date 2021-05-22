@@ -5,6 +5,7 @@
 #include <mpi.h>
 #include <omp.h>
 #include <unistd.h>
+#include <string.h>
 #include "ballAlg.h"
 
 #define RANGE 10
@@ -199,20 +200,20 @@ void get_points_ab(double **pts, long *set, int n_dims, long n_points, long *a, 
         }
     }
 }
-
-void orthogonal_projection_mpi(double **pts, long *set, double **po, int n_dims, long n_points, long a, long b, int id, int p,  MPI_Comm comm)
+void orthogonal_projection_mpi(double **pts, long *set, double **po, double **aux_array, int n_dims, long n_points, long a, long b, int id, int p,  MPI_Comm comm)
 {
     double den = 0, num = 0, inn_prod = 0, aux = 0;
     double *aux2 = (double *) malloc(n_dims * sizeof(double));
     long index_a = set[a], index_b = set[b], index_i = 0, gi = 0;
-    long size = BLOCK_SIZE(id, p, n_points);
+    long size = BLOCK_SIZE(id, p, n_points), pos_init = BLOCK_LOW(id, p, n_points);
 
-    MPI_Request *requests0 = (MPI_Request *) malloc((n_points - size)* sizeof(MPI_Request));
-    MPI_Status *statuses0 = (MPI_Status *) malloc((n_points - size)* sizeof(MPI_Status));
-
-    MPI_Request *requests = (MPI_Request *) malloc(size* sizeof(MPI_Request));
-    MPI_Status *statuses = (MPI_Status *) malloc(size* sizeof(MPI_Status));
-
+    int * recvcounts = (int *) malloc (p * sizeof(int));
+    int * displs = (int *) malloc (p * sizeof(int));
+    for (int i = 0; i < p; i++)
+    {
+        recvcounts[i] = 2 * BLOCK_SIZE(i, p, n_points);
+        displs[i] = 2 * BLOCK_LOW(i, p, n_points);
+    }
 
 
     for(int j = 0; j < n_dims; j++)
@@ -221,13 +222,12 @@ void orthogonal_projection_mpi(double **pts, long *set, double **po, int n_dims,
         den += aux * aux;
         aux2[j] = aux;
     }
-    
-    
-    
+
     for(long i = 0; i < size; i++)
     {
-        gi = i + BLOCK_LOW(id, p, n_points);
-        if(i != a && i != b)
+        gi = i + pos_init;
+
+        if(gi != a && gi != b)
         {   
             index_i = set[gi];
             for(int j = 0; j < n_dims; j++)
@@ -235,36 +235,22 @@ void orthogonal_projection_mpi(double **pts, long *set, double **po, int n_dims,
                 num += (pts[index_i][j] - pts[index_a][j]) * aux2[j];
             }
             inn_prod = (num/den);
-            po[gi][0] = (inn_prod * (pts[index_b][0] - pts[index_a][0])) + pts[index_a][0];
+            aux_array[i][0] = (inn_prod * (pts[index_b][0] - pts[index_a][0])) + pts[index_a][0];
             num = 0;
         }
         else if(gi == a)
-            po[gi][0] = pts[index_a][0];
+            aux_array[i][0] = pts[index_a][0];
         else
-            po[gi][0] = pts[index_b][0];
-        po[gi][1] = set[i];
-
-        if(id != 0)
-            MPI_Isend(po[gi], 2, MPI_DOUBLE, 0, gi, comm, &requests[i]);
+            aux_array[i][0] = pts[index_b][0];
+        aux_array[i][1] = set[gi];
     }
+        
 
-    if (id == 0)
-    {
-        for(long j = BLOCK_LOW(1, p, n_points); j < n_points; j++)
-            MPI_Irecv(po[j], 2, MPI_DOUBLE, MPI_ANY_SOURCE, j, comm, &requests0[j - size]);
-    }
- 
-    if(id == 0)
-        MPI_Waitall(n_points - size, requests0, statuses0);
-    else
-        MPI_Waitall(size, requests, statuses);
+    MPI_Allgatherv(&(aux_array[0][0]), 2 * size, MPI_DOUBLE, &(po[0][0]), recvcounts, displs, MPI_DOUBLE, comm);
 
-    free(statuses);
-    free(requests);
-    free(statuses0);
-    free(requests0);
     free(aux2);
 }
+
 
 void orthogonal_projection(double **pts, long *set, double **po, int n_dims, long n_points, long a, long b)
 {
@@ -389,11 +375,59 @@ function partition(array, left, right, pivotIndex)
     return storeIndex;
 }*/
 
+void swap(double* a, double* b)
+{
+    double t[2];
+
+    t[0] = a[0];
+    t[1] = a[1];
+    
+    a[0] = b[0];
+    a[1] = b[1];
+
+    b[0] = t[0];
+    b[1] = t[1];
+}
+
+long partition (double **arr, long low, long high)
+{
+    double pivot = arr[high][0]; // pivot
+    long i = (low - 1); // Index of smaller element and indicates the right position of pivot found so far
+ 
+    for (long j = low; j <= high - 1; j++)
+    {
+        // If current element is smaller than the pivot
+        if (arr[j][0] < pivot)
+        {
+            i++; // increment index of smaller element
+            swap(&arr[i][0], &arr[j][0]);
+        }
+    }
+    swap(&arr[i + 1][0], &arr[high][0]);
+    return (i + 1);
+}
+
+void quickSort(double **arr, long low, long high)
+{
+    if (low < high)
+    {
+        /* pi is partitioning index, arr[p] is now
+        at right place */
+        long pi = partition(arr, low, high);
+ 
+        // Separately sort elements before
+        // partition and after partition
+        quickSort(arr, low, pi - 1);
+        quickSort(arr, pi + 1, high);
+    }
+}
+
 void find_median(double **pts, long *set, double **po, int n_dims, long n_points, long a, long b, double *median)
 {
     int index = 0, idx1 = 0, idx2 = 0;
     
-    qsort(po, n_points, sizeof(po[0]), comp);
+    //qsort(po, n_points, sizeof(po[0]), comp);
+    quickSort(po, 0, n_points-1);
 
     if(n_points%2 == 1)
     {        
@@ -448,11 +482,12 @@ void create_sets_LR(long *set, double **po, int n_dims, long n_points, double *m
     *r = r_aux - n_points/2;
 }
 
-struct node* build_tree_mpi(double **pts, long *set, double **po, int n_dims, long n_points, int gid, int id, int gp, int p, MPI_Comm comm, int *procsList)
+struct node* build_tree_mpi(double **pts, long *set, double **po, double **aux_array, int n_dims, long n_points, int gid, int id, int gp, int p, MPI_Comm comm, int *procsList)
 {   
     int new_id, new_p, id_bcast;
     double radius = 0;
     struct node* root;
+    
     
     //MPI_Status status;
 
@@ -483,35 +518,50 @@ struct node* build_tree_mpi(double **pts, long *set, double **po, int n_dims, lo
         
         get_points_ab_mpi(pts, set, n_dims, n_points, &a, &b, id, p, comm);
 
-        //orthogonal_projection_mpi(pts, set, po, n_dims, n_points, a, b, id, p, comm);
         
+
+        //orthogonal_projection_mpi(pts, set, po, aux_array, n_dims, n_points, a, b, id, p, comm);
+
 
         /*if ( id == 0 )
         {*/
-            //printf("here %d\n", gid);
+
             orthogonal_projection(pts, set, po, n_dims, n_points, a, b);
 
+
             find_median(pts, set, po, n_dims, n_points, a, b, root->center);
+
+/* 
+            for (int i = 0; i < n_points; i++)
+            {
+                printf("%d &(po[%d][0]): %p &(po[%d][1]): %p \n", gid, i, &(po[i][0]), i, &(po[i][1]));
+            }
+             for (int i = 0; i < n_points; i++)
+            {
+                printf("%d &(test[%d][0]): %p &(test[%d][1]): %p \n", gid, i, &(test[i][0]), i, &(test[i][1]));
+            } */
 
             root->radius = get_radius(pts, set, n_points, n_dims, root->center);
 
         
-            create_sets_LR(set, po, n_dims, n_points, root->center, &l, &r);  
+            create_sets_LR(set, po, n_dims, n_points, root->center, &l, &r); 
+            
+            
         //}
         if(p > 1)
         {
-            MPI_Comm new_comm;
+            MPI_Comm new_comm; 
             int color = id/(p/2);
             MPI_Comm_split(comm, color, id, &new_comm);
             MPI_Comm_rank(new_comm, &new_id);
             MPI_Comm_size(new_comm, &new_p);
             if(id < p/2){
                 //printf("left id: %d %d \n", id, new_id);
-                root->nextL = build_tree_mpi(pts, set, po, n_dims, l, gid, new_id, gp, new_p, new_comm, procsList);
+                root->nextL = build_tree_mpi(pts, set, po, aux_array, n_dims, l, gid, new_id, gp, new_p, new_comm, procsList);
             }
             else{
                 //printf("right id: %d %d \n", id, new_id);
-                root->nextR = build_tree_mpi(pts, &set[l], &po[l], n_dims, r, gid, new_id, gp, new_p, new_comm, &procsList[new_p]);  
+                root->nextR = build_tree_mpi(pts, &set[l], &po[l], &aux_array[l], n_dims, r, gid, new_id, gp, new_p, new_comm, &procsList[new_p]);  
             }
         }
         else
@@ -580,26 +630,46 @@ void print_tree(struct node* Tree, int n_dims, double** pts, int id)
 {
     int check = 0;
     long id_parent = 0;
+    char aux[1000] = "", str[1000] = "";
     struct node* tempL = Tree;
     struct node* tempR = Tree;
 
     id_parent = tempL->id;
     if(id == tempL->procsList[0])
     {
-        if(tempL->nextL == NULL)
-            printf("%ld -1 -1 %.6lf", tempL->id, tempL->radius);
-        else
-            printf("%ld %ld %ld %.6lf", tempL->id, 2*id_parent + 1, 2*id_parent + 2, tempL->radius);
         if(tempL->nextL == NULL){
+            sprintf(str, "%ld", tempL->id);
+            strcpy(aux, " -1 -1 ");
+            strcat(str, aux);
+            sprintf(aux, "%.6lf", tempL->radius);
+            strcat(str, aux);
+            //printf("%ld -1 -1 %.6lf", tempL->id, tempL->radius);
             for(int i = 0; i < n_dims; i++){
-                printf("  %.6lf", pts[tempL->leaf][i]);
+                sprintf(aux, "  %.6lf", pts[tempL->leaf][i]);
+                strcat(str, aux);
+               // printf("  %.6lf", pts[tempL->leaf][i]);
+            }
+        }           
+            
+        else{
+            sprintf(aux, "%ld", tempL->id);
+            strcpy(str, aux);
+            sprintf(aux, " %ld", 2*id_parent + 1);
+            strcat(str, aux);
+            sprintf(aux, " %ld", 2*id_parent + 2);
+            strcat(str, aux);
+            sprintf(aux, " %.6lf", tempL->radius);
+            strcat(str, aux);
+            /* printf("%ld %ld %ld %.6lf", tempL->id, 2*id_parent + 1, 2*id_parent + 2, tempL->radius); */
+            for(int i = 0; i < n_dims; i++){
+                sprintf(aux, "  %.6lf", tempL->center[i]);
+                strcat(str, aux);
+                /* printf("  %.6lf", tempL->center[i]); */
             }
         }
-        else{
-            for(int i = 0; i < n_dims; i++)
-                printf("  %.6lf", tempL->center[i]);
-        }
-        printf("\n"); 
+        strcat(str, "\n");
+        printf("%s", str);
+        //printf("\n");
     }
     tempL = tempL->nextL;
     if(tempL != NULL)
@@ -645,17 +715,23 @@ int main(int argc, char *argv[])
 
     pts = get_points(argc, argv, &n_dims, &n_points);
     long* set = (long*)malloc(n_points * sizeof(long)); 
-    double** po = (double**)malloc((n_points) * sizeof(double*));
+
+    double** po = (double **)malloc(n_points * sizeof(double*));
+    //create_array_pts(2, n_points);
+    double *data = (double *)malloc(2*n_points*sizeof(double));
+    double** aux_array = create_array_pts(2, n_points);
+
+    //double **po = (double **)malloc(n_points * sizeof(double *));
     for (long i = 0; i < n_points; i++)
     {
         set[i] = i;
-        po[i] = (double*)malloc(2 * sizeof(double));
+        po[i] = &data[i * 2];
+        
     }
-    root = build_tree_mpi(pts, set, po, n_dims, n_points, me, me, nprocs, nprocs, MPI_COMM_WORLD, procsList);
+    root = build_tree_mpi(pts, set, po, aux_array, n_dims, n_points, me, me, nprocs, nprocs, MPI_COMM_WORLD, procsList);
 
     exec_time += MPI_Wtime();
     
-    freepointers(n_points, po);
     MPI_Reduce(&node_id, &total_nodes, 1, MPI_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     if(me == 0)
@@ -668,6 +744,9 @@ int main(int argc, char *argv[])
     root->id = 0;
     print_tree(root, n_dims, pts, me); 
     
+    //nao funciona com free po[0]??????????
+    free(data);
+    free(po);
     free(pts[0]);
     free(pts);
 
